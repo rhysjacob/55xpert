@@ -1,6 +1,6 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3333';
+const API_BASE = import.meta.env['VITE_API_URL'] ?? 'http://localhost:3333';
 
 async function getToken(): Promise<string | null> {
   try {

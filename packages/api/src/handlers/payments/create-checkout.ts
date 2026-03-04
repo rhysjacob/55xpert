@@ -14,7 +14,7 @@ import type { Payment } from '@corexpert/core';
 const STRIPE_SECRET_KEY = process.env['STRIPE_SECRET_KEY'] ?? '';
 const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:3001';
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-12-18.acacia' });
+const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
 const jobs = new JobsRepository();
 const payments = new PaymentsRepository();
 

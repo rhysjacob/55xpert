@@ -15,12 +15,6 @@ interface Job {
   publishedAt: string;
 }
 
-interface DashboardData {
-  activeJobs: number;
-  completedJobs: number;
-  recentJobs: Job[];
-}
-
 function formatPence(pence: number): string {
   return `\u00A3${(pence / 100).toFixed(2)}`;
 }

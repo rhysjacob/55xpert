@@ -1,5 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { ScanCommand, type ScanCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
 import { ok } from '../../lib/response';
@@ -11,10 +11,10 @@ async function dashboardHandler(event: APIGatewayProxyEventV2): Promise<APIGatew
 
   // Aggregate counts from each table
   const [casesResult, jobsResult, usersResult, paymentsResult] = await Promise.all([
-    docClient.send(new ScanCommand({ TableName: TABLES.CASES, Select: 'COUNT' })),
-    docClient.send(new ScanCommand({ TableName: TABLES.JOBS, Select: 'COUNT' })),
-    docClient.send(new ScanCommand({ TableName: TABLES.USERS, Select: 'COUNT' })),
-    docClient.send(new ScanCommand({ TableName: TABLES.PAYMENTS, Select: 'COUNT' })),
+    docClient.send(new ScanCommand({ TableName: TABLES.CASES, Select: 'COUNT' })) as Promise<ScanCommandOutput>,
+    docClient.send(new ScanCommand({ TableName: TABLES.JOBS, Select: 'COUNT' })) as Promise<ScanCommandOutput>,
+    docClient.send(new ScanCommand({ TableName: TABLES.USERS, Select: 'COUNT' })) as Promise<ScanCommandOutput>,
+    docClient.send(new ScanCommand({ TableName: TABLES.PAYMENTS, Select: 'COUNT' })) as Promise<ScanCommandOutput>,
   ]);
 
   return ok({

@@ -3,7 +3,6 @@ import { Link } from 'react-router';
 import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
 
 interface DashboardStats {
   totalCases: number;

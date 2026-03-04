@@ -1,7 +1,7 @@
-import { Navigate } from 'react-router';
+import { Navigate, Outlet } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export function ProtectedRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -16,5 +16,5 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/sign-in" replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 }

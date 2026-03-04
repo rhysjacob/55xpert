@@ -1,10 +1,11 @@
 import type { User } from '../types/user';
 import type { RepairMethod } from '../types/triage';
+import type { VehicleSize } from '../types/vehicle';
 
 export interface MatchCriteria {
   postcode: string;
-  vehicleSize: string;
-  repairMethods: string[];
+  vehicleSize: VehicleSize;
+  repairMethods: RepairMethod[];
 }
 
 /**
@@ -27,7 +28,7 @@ export function matchRepairers(repairers: User[], criteria: MatchCriteria): User
     const acceptedMethods = repairer.preferences.repairMethods ?? [];
     if (acceptedMethods.length > 0) {
       const hasMatchingMethod = criteria.repairMethods.some(
-        (m) => acceptedMethods.includes(m as RepairMethod),
+        (m) => acceptedMethods.includes(m),
       );
       if (!hasMatchingMethod) return false;
     }

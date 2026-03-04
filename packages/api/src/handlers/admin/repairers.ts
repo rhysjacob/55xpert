@@ -22,8 +22,8 @@ async function adminRepairersHandler(event: APIGatewayProxyEventV2): Promise<API
 
   return ok({
     items: result.items,
-    cursor: result.lastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.lastEvaluatedKey)).toString('base64url')
+    cursor: result.lastKey
+      ? Buffer.from(JSON.stringify(result.lastKey)).toString('base64url')
       : null,
   });
 }

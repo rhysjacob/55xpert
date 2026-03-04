@@ -104,7 +104,7 @@ async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
       panels: adjustedPanels,
       totalEstimatedCost: adjustedCost,
       requiresXpertReview: false,
-    });
+    }, nextStatus);
   }
 
   logger.info('Xpert review submitted', {

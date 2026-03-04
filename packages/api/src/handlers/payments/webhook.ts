@@ -2,16 +2,15 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda
 import Stripe from 'stripe';
 import { jsonResponse } from '../../lib/response';
 import { logger } from '../../lib/logger';
-import { PaymentsRepository, JobsRepository } from '@corexpert/db';
+import { PaymentsRepository } from '@corexpert/db';
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLES } from '@corexpert/db';
 
 const STRIPE_SECRET_KEY = process.env['STRIPE_SECRET_KEY'] ?? '';
 const STRIPE_WEBHOOK_SECRET = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-12-18.acacia' });
+const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
 const payments = new PaymentsRepository();
-const jobs = new JobsRepository();
 
 /**
  * Stripe webhook handler. No JWT auth — validates via Stripe signature.

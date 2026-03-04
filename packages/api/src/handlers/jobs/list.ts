@@ -36,8 +36,8 @@ async function listHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
 
   return ok({
     items,
-    cursor: result.lastEvaluatedKey
-      ? Buffer.from(JSON.stringify(result.lastEvaluatedKey)).toString('base64url')
+    cursor: result.lastKey
+      ? Buffer.from(JSON.stringify(result.lastKey)).toString('base64url')
       : null,
   });
 }

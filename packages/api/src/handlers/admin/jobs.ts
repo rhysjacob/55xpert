@@ -1,5 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { ScanCommand, type ScanCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
 import { getQueryParam } from '../../middleware/validation';
@@ -24,8 +24,8 @@ async function adminJobsHandler(event: APIGatewayProxyEventV2): Promise<APIGatew
     const result = await jobs.listByStatus(status, Math.min(limit, 100), parsedLastKey);
     return ok({
       items: result.items,
-      cursor: result.lastEvaluatedKey
-        ? Buffer.from(JSON.stringify(result.lastEvaluatedKey)).toString('base64url')
+      cursor: result.lastKey
+        ? Buffer.from(JSON.stringify(result.lastKey)).toString('base64url')
         : null,
     });
   }
@@ -34,7 +34,7 @@ async function adminJobsHandler(event: APIGatewayProxyEventV2): Promise<APIGatew
     TableName: TABLES.JOBS,
     Limit: Math.min(limit, 100),
     ExclusiveStartKey: parsedLastKey,
-  }));
+  })) as ScanCommandOutput;
 
   return ok({
     items: result.Items ?? [],

@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
-import type { Construct } from 'constructs';
+import { Construct } from 'constructs';
 
 export interface AppLambdaProps {
   entry: string;

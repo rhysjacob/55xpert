@@ -73,7 +73,7 @@ export function parseTriageResponse(
 
   const hasLowConfidence = panels.some((p) => p.confidenceScore < confidenceThreshold);
   const hasStructural = panels.some((p) => p.damageType === 'STRUCTURAL');
-  const requiresHumanReview = raw.requiresHumanReview ?? hasLowConfidence || hasStructural;
+  const requiresHumanReview = raw.requiresHumanReview ?? (hasLowConfidence || hasStructural);
 
   return {
     panels,

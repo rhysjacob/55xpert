@@ -11,8 +11,6 @@ import type { TriageResult, DamagePanel, CaseStatus } from '@corexpert/core';
 import { createDamageAssessor } from '@corexpert/ai';
 import type { AssessmentImage, DamageAssessmentOutput } from '@corexpert/ai';
 
-const CONFIDENCE_THRESHOLD = Number(process.env['CONFIDENCE_THRESHOLD'] ?? '0.7');
-
 const s3 = new S3Client({});
 const cases = new CasesRepository();
 const assessor = createDamageAssessor();
@@ -128,12 +126,10 @@ async function submitHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   };
 
   // Save and update status
-  await cases.updateTriageResult(caseId, triageResult);
-
   const nextStatus: CaseStatus = triageResult.requiresXpertReview
     ? 'XPERT_REVIEW'
     : 'TRIAGE_COMPLETE';
-  await cases.updateStatus(caseId, nextStatus);
+  await cases.updateTriageResult(caseId, triageResult, nextStatus);
 
   logger.info('Triage saved', {
     caseId,

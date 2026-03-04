@@ -6,7 +6,7 @@ import { ok } from '../../lib/response';
 import { logger } from '../../lib/logger';
 import { JobsRepository, CasesRepository } from '@corexpert/db';
 import { NotFoundError, ConflictError } from '@corexpert/core';
-import type { CaseStatus } from '@corexpert/core';
+import type { CaseStatus, JobAcceptance } from '@corexpert/core';
 
 const jobs = new JobsRepository();
 const cases = new CasesRepository();
@@ -28,7 +28,11 @@ async function acceptHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   }
 
   // Attempt conditional write (fastest finger wins)
-  const accepted = await jobs.acceptJob(jobId, auth.userId);
+  const acceptance: JobAcceptance = {
+    repairerId: auth.userId,
+    acceptedAt: new Date().toISOString(),
+  };
+  const accepted = await jobs.acceptJob(jobId, acceptance);
 
   if (!accepted) {
     throw new ConflictError('This job has already been accepted by another repairer');

@@ -36,7 +36,13 @@ async function preferencesHandler(event: APIGatewayProxyEventV2): Promise<APIGat
   if (!existing) throw new NotFoundError('User', auth.userId);
 
   await users.update(auth.userId, {
-    preferences: { ...existing.preferences, ...body },
+    preferences: {
+      maxDistanceMiles: body.maxDistanceMiles ?? existing.preferences?.maxDistanceMiles,
+      minLabourRate: body.minLabourRate ?? existing.preferences?.minLabourRate,
+      vehicleSizes: body.vehicleSizes ?? existing.preferences?.vehicleSizes ?? [],
+      repairMethods: body.repairMethods ?? existing.preferences?.repairMethods ?? [],
+      notifyByEmail: body.notifyByEmail ?? existing.preferences?.notifyByEmail ?? true,
+    },
   });
 
   const updated = await users.getById(auth.userId);

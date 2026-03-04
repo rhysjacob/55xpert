@@ -1,5 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand, type QueryCommandOutput } from '@aws-sdk/lib-dynamodb';
 import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
 import { getQueryParam } from '../../middleware/validation';
@@ -26,7 +26,7 @@ async function myJobsHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     },
     Limit: Math.min(limit, 100),
     ScanIndexForward: false,
-  }));
+  })) as QueryCommandOutput;
 
   return ok({
     items: result.Items ?? [],

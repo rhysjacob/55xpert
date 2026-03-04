@@ -9,13 +9,13 @@ interface CognitoClaims {
 }
 
 function parseCognitoClaims(event: APIGatewayProxyEventV2): CognitoClaims {
-  const authContext = event.requestContext?.authorizer;
+  const authContext = (event.requestContext as unknown as Record<string, unknown>)?.['authorizer'] as Record<string, unknown> | undefined;
   if (!authContext) {
     throw new UnauthorizedError('No authorization context');
   }
 
   // API Gateway v2 JWT authorizer puts claims in authorizer.jwt.claims
-  const jwt = (authContext as Record<string, unknown>)['jwt'] as
+  const jwt = authContext['jwt'] as
     | { claims: Record<string, unknown> }
     | undefined;
 
