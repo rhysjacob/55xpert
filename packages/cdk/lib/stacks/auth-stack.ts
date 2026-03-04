@@ -1,10 +1,14 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as path from 'path';
 import type { Construct } from 'constructs';
+import { AppLambda } from '../constructs/lambda-function';
 import type { EnvironmentConfig } from '../config/environments';
 
 export interface AuthStackProps extends cdk.StackProps {
   config: EnvironmentConfig;
+  usersTable: dynamodb.ITable;
 }
 
 export class AuthStack extends cdk.Stack {
@@ -20,6 +24,18 @@ export class AuthStack extends cdk.Stack {
     const removal = config.removalPolicy === 'destroy'
       ? cdk.RemovalPolicy.DESTROY
       : cdk.RemovalPolicy.RETAIN;
+
+    // Post-confirmation Lambda
+    const handlersPath = path.join(__dirname, '../../../../api/src/handlers');
+    const postConfirmation = new AppLambda(this, 'PostConfirmation', {
+      entry: path.join(handlersPath, 'auth/post-confirmation.ts'),
+      environment: {
+        STAGE: config.stage,
+        USERS_TABLE: props.usersTable.tableName,
+      },
+      description: 'Cognito post-confirmation trigger',
+    });
+    props.usersTable.grantReadWriteData(postConfirmation.function);
 
     this.userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: `corexpert-${config.stage}-users`,
@@ -39,6 +55,9 @@ export class AuthStack extends cdk.Stack {
         email: { required: true, mutable: true },
         givenName: { required: false, mutable: true },
         familyName: { required: false, mutable: true },
+      },
+      lambdaTriggers: {
+        postConfirmation: postConfirmation.function,
       },
     });
 
@@ -68,6 +87,11 @@ export class AuthStack extends cdk.Stack {
       authFlows: { userSrp: true },
       preventUserExistenceErrors: true,
     });
+
+    // Pass client IDs to post-confirmation Lambda so it can determine role from client
+    postConfirmation.function.addEnvironment('CONSUMER_CLIENT_ID', this.consumerClient.userPoolClientId);
+    postConfirmation.function.addEnvironment('REPAIRER_CLIENT_ID', this.repairerClient.userPoolClientId);
+    postConfirmation.function.addEnvironment('ADMIN_CLIENT_ID', this.adminClient.userPoolClientId);
 
     // Outputs
     new cdk.CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });

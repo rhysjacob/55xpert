@@ -23,7 +23,11 @@ const env = {
 const prefix = `Corexpert-${config.stage}`;
 
 const databaseStack = new DatabaseStack(app, `${prefix}-Database`, { env, config });
-const authStack = new AuthStack(app, `${prefix}-Auth`, { env, config });
+const authStack = new AuthStack(app, `${prefix}-Auth`, {
+  env,
+  config,
+  usersTable: databaseStack.usersTable,
+});
 const storageStack = new StorageStack(app, `${prefix}-Storage`, { env, config });
 
 new ApiStack(app, `${prefix}-Api`, {
