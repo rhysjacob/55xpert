@@ -17,6 +17,7 @@ export * from './constants/paint-costs';
 
 // Utils
 export * from './utils/cost-calculator';
+export * from './utils/matching';
 export * from './utils/validators';
 
 // Errors

@@ -132,6 +132,36 @@ export class ApiStack extends cdk.Stack {
 
     addRoute('TriageResult', 'triage/result.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}/triage');
 
+    // ===== Jobs (Marketplace) =====
+    addRoute('JobPublish', 'jobs/publish.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/publish');
+    addRoute('JobsList', 'jobs/list.ts', apigw.HttpMethod.GET, '/api/v1/jobs');
+    addRoute('JobsGet', 'jobs/get.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}');
+    addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept');
+    addRoute('JobsDetails', 'jobs/details.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}/details');
+
+    // ===== Repairer =====
+    addRoute('RepairerProfile', 'repairers/profile.ts', apigw.HttpMethod.GET, '/api/v1/repairer/profile');
+    addRoute('RepairerUpdateProfile', 'repairers/update-profile.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/profile');
+    addRoute('RepairerPreferencesGet', 'repairers/preferences.ts', apigw.HttpMethod.GET, '/api/v1/repairer/preferences');
+    addRoute('RepairerPreferencesUpdate', 'repairers/preferences.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/preferences');
+    addRoute('RepairerMyJobs', 'repairers/my-jobs.ts', apigw.HttpMethod.GET, '/api/v1/repairer/jobs');
+
+    // ===== Xpert Review =====
+    addRoute('XpertCasesList', 'xpert/list-cases.ts', apigw.HttpMethod.GET, '/api/v1/xpert/cases');
+    addRoute('XpertCaseGet', 'xpert/get-case.ts', apigw.HttpMethod.GET, '/api/v1/xpert/cases/{caseId}');
+    addRoute('XpertReview', 'xpert/review.ts', apigw.HttpMethod.POST, '/api/v1/xpert/cases/{caseId}/review');
+
+    // ===== Admin =====
+    addRoute('AdminCases', 'admin/cases.ts', apigw.HttpMethod.GET, '/api/v1/admin/cases');
+    addRoute('AdminJobs', 'admin/jobs.ts', apigw.HttpMethod.GET, '/api/v1/admin/jobs');
+    addRoute('AdminRepairers', 'admin/repairers.ts', apigw.HttpMethod.GET, '/api/v1/admin/repairers');
+    addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}');
+    addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard');
+
+    // ===== Payments =====
+    addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
+    addRoute('PaymentWebhook', 'payments/webhook.ts', apigw.HttpMethod.POST, '/api/v1/payments/webhook', { auth: false });
+
     new cdk.CfnOutput(this, 'ApiUrl', { value: this.api.apiEndpoint });
   }
 }
