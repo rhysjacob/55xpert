@@ -32,10 +32,13 @@ function parseCognitoClaims(event: APIGatewayProxyEventV2): CognitoClaims {
   }
 
   const groups = claims['cognito:groups'];
-  const parsedGroups = typeof groups === 'string'
-    ? groups.split(',').map((g) => g.trim())
-    : Array.isArray(groups)
-      ? (groups as string[])
+  // API Gateway v2's JWT authorizer serializes multi-valued claims as a
+  // bracketed, space-separated string (e.g. "[consumers repairers]"), not a
+  // JSON array or comma list. Normalise all three shapes here.
+  const parsedGroups = Array.isArray(groups)
+    ? (groups as string[])
+    : typeof groups === 'string'
+      ? groups.replace(/^\[|\]$/g, '').split(/[\s,]+/).map((g) => g.trim()).filter(Boolean)
       : [];
 
   return { sub, email, 'cognito:groups': parsedGroups };

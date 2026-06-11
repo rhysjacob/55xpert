@@ -50,7 +50,9 @@ export function NewCasePage() {
   });
 
   const triageMutation = useMutation({
-    mutationFn: () => api.post<{ triageResult: unknown }>(`/api/v1/cases/${caseId}/triage`),
+    // Triage runs asynchronously: this returns quickly with TRIAGE_PENDING and
+    // the results page polls for completion.
+    mutationFn: () => api.post<{ caseId: string; status: string }>(`/api/v1/cases/${caseId}/triage`),
     onSuccess: () => {
       navigate(`/cases/${caseId}/triage`);
     },

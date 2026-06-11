@@ -12,7 +12,7 @@ interface TriageResponse {
   referenceNo: string;
   status: string;
   vehicle?: { make?: string; model?: string; year?: number };
-  triageResult: TriageResult;
+  triageResult: TriageResult | null;
 }
 
 const CONFIDENCE_COLORS: Record<TriageConfidence, string> = {
@@ -67,6 +67,9 @@ export function TriageResultsPage() {
     queryKey: ['triage', caseId],
     queryFn: () => api.get<TriageResponse>(`/api/v1/cases/${caseId}/triage`),
     enabled: !!caseId,
+    // The AI assessment runs asynchronously; poll until it completes or fails.
+    refetchInterval: (query) =>
+      query.state.data?.status === 'TRIAGE_PENDING' ? 3000 : false,
   });
 
   if (isLoading) {
@@ -82,6 +85,39 @@ export function TriageResultsPage() {
       <Layout>
         <div className="text-center py-12 text-red-500">
           {error instanceof Error ? error.message : 'Failed to load results'}
+        </div>
+      </Layout>
+    );
+  }
+
+  // Assessment still running — keep the user informed while the query polls.
+  if (data.status === 'TRIAGE_PENDING' || !data.triageResult) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto text-center py-16">
+          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+          <h1 className="text-xl font-semibold text-gray-900">Analysing your photos</h1>
+          <p className="mt-2 text-gray-500">
+            Our AI is assessing the damage and estimating repair costs. This usually
+            takes under a minute &mdash; the results will appear here automatically.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (data.status === 'TRIAGE_FAILED') {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto text-center py-16">
+          <h1 className="text-xl font-semibold text-gray-900">Assessment failed</h1>
+          <p className="mt-2 text-gray-500">
+            Something went wrong while analysing your photos. Please try submitting
+            the case for assessment again.
+          </p>
+          <Link to="/" className="mt-6 inline-block">
+            <Button variant="secondary">Back to Dashboard</Button>
+          </Link>
         </div>
       </Layout>
     );

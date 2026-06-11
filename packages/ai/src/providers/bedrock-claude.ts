@@ -11,7 +11,7 @@ import type {
 import { buildSystemPrompt, buildUserPrompt } from '../prompts/damage-analysis';
 import { parseTriageResponse } from '../parsers/triage-response';
 
-const DEFAULT_MODEL_ID = 'anthropic.claude-sonnet-4-20250514';
+const DEFAULT_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 const DEFAULT_REGION = 'eu-west-2';
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 const MAX_TOKENS = 4096;

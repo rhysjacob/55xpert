@@ -34,6 +34,11 @@ new ApiStack(app, `${prefix}-Api`, {
   env,
   config,
   userPool: authStack.userPool,
+  userPoolClientIds: [
+    authStack.consumerClient.userPoolClientId,
+    authStack.repairerClient.userPoolClientId,
+    authStack.adminClient.userPoolClientId,
+  ],
   casesTable: databaseStack.casesTable,
   jobsTable: databaseStack.jobsTable,
   usersTable: databaseStack.usersTable,

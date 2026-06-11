@@ -16,7 +16,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     introductionFee: 2500, // £25
     confidenceThreshold: 0.7,
     aiProvider: 'bedrock-claude',
-    aiModelId: 'anthropic.claude-sonnet-4-20250514',
+    aiModelId: 'eu.anthropic.claude-sonnet-4-6',
   },
   prod: {
     stage: 'prod',
@@ -25,6 +25,6 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     introductionFee: 2500,
     confidenceThreshold: 0.7,
     aiProvider: 'bedrock-claude',
-    aiModelId: 'anthropic.claude-sonnet-4-20250514',
+    aiModelId: 'eu.anthropic.claude-sonnet-4-6',
   },
 };

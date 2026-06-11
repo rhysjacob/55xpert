@@ -14,6 +14,7 @@ import type { EnvironmentConfig } from '../config/environments';
 export interface ApiStackProps extends cdk.StackProps {
   config: EnvironmentConfig;
   userPool: cognito.IUserPool;
+  userPoolClientIds: string[];
   casesTable: dynamodb.ITable;
   jobsTable: dynamodb.ITable;
   usersTable: dynamodb.ITable;
@@ -34,7 +35,9 @@ export class ApiStack extends cdk.Stack {
       'CognitoAuthorizer',
       `https://cognito-idp.${config.region}.amazonaws.com/${props.userPool.userPoolId}`,
       {
-        jwtAudience: ['placeholder'], // Updated with actual client IDs
+        // idTokens carry the app client ID in their `aud` claim, so the
+        // authorizer must accept all three SPA client IDs.
+        jwtAudience: props.userPoolClientIds,
       },
     );
 
@@ -55,7 +58,7 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    const handlersPath = path.join(__dirname, '../../../../api/src/handlers');
+    const handlersPath = path.join(__dirname, '../../../api/src/handlers');
     const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable];
 
     const sharedEnv: Record<string, string> = {
@@ -118,17 +121,41 @@ export class ApiStack extends cdk.Stack {
     // ===== Vehicle Lookup =====
     addRoute('VehicleLookup', 'vehicles/lookup.ts', apigw.HttpMethod.POST, '/api/v1/vehicles/lookup');
 
-    // ===== Triage =====
-    const triageSubmit = addRoute('TriageSubmit', 'triage/submit.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/triage', {
+    // ===== Triage (async) =====
+    // The Bedrock vision call takes ~40-60s, well past the API Gateway ~30s
+    // integration timeout, so triage runs in a worker Lambda invoked
+    // asynchronously by the submit handler. The frontend polls GET /triage.
+    const triageWorker = new AppLambda(this, 'TriageWorker', {
+      entry: path.join(handlersPath, 'triage/worker.ts'),
+      environment: sharedEnv,
+      description: 'Async triage worker (Bedrock damage assessment)',
       memorySize: 1024,
-      timeout: cdk.Duration.seconds(60),
+      timeout: cdk.Duration.seconds(120),
     });
+    for (const table of allTables) {
+      table.grantReadWriteData(triageWorker.function);
+    }
+    props.imagesBucket.grantReadWrite(triageWorker.function);
 
-    // Grant Bedrock InvokeModel to triage Lambda
-    triageSubmit.function.addToRolePolicy(new iam.PolicyStatement({
+    // Grant Bedrock InvokeModel to the worker. The model is invoked via a
+    // cross-region inference profile (e.g. eu.anthropic.claude-sonnet-4-6),
+    // which requires permission on both the inference-profile resource and the
+    // underlying foundation models in every region the profile may route to.
+    triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
-      resources: [`arn:aws:bedrock:${config.region}::foundation-model/${config.aiModelId}`],
+      resources: [
+        `arn:aws:bedrock:*:${this.account}:inference-profile/${config.aiModelId}`,
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
+      ],
     }));
+
+    // Trigger: validates, marks pending, async-invokes the worker, returns fast.
+    const triageSubmit = addRoute('TriageSubmit', 'triage/submit.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/triage', {
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(15),
+    });
+    triageSubmit.function.addEnvironment('TRIAGE_WORKER_FUNCTION', triageWorker.function.functionName);
+    triageWorker.function.grantInvoke(triageSubmit.function);
 
     addRoute('TriageResult', 'triage/result.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}/triage');
 
