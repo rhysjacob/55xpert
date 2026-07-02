@@ -15,7 +15,7 @@ interface CaseData {
   incidentDate: string;
   incidentNotes: string;
   vehicle?: { registrationNo: string; make: string; model: string; year: number; colour: string };
-  images: { imageType: string; s3Key: string }[];
+  images: { imageType: string; s3Key: string; url?: string }[];
   triageResult?: TriageResult;
   xpertReviews?: { reviewId: string; decision: string; notes: string; reviewedAt: string }[];
   createdAt: string;
@@ -32,7 +32,9 @@ function PanelRow({ panel }: { panel: DamagePanel }) {
         <p className="font-medium text-gray-900">
           {panel.panelName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
         </p>
-        <span className="text-sm font-medium">{formatPence(panel.subtotal)}</span>
+        {panel.sizeEstimateCm !== undefined && (
+          <span className="text-sm text-gray-500">~{panel.sizeEstimateCm}cm</span>
+        )}
       </div>
       <p className="text-sm text-gray-500 mb-2">{panel.description}</p>
       <div className="flex flex-wrap gap-1.5 text-xs">
@@ -48,11 +50,6 @@ function PanelRow({ panel }: { panel: DamagePanel }) {
         }`}>
           {Math.round(panel.confidenceScore * 100)}%
         </span>
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
-        <span>Labour: {formatPence(panel.labourCost)} ({panel.labourHours}h)</span>
-        <span>Parts: {formatPence(panel.partsCost)}</span>
-        <span>Paint: {formatPence(panel.paintCost)}</span>
       </div>
     </div>
   );
@@ -124,6 +121,32 @@ export function CaseDetailPage() {
           </Card>
         </div>
 
+        {data.images && data.images.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader><h2 className="font-semibold">Damage Photos</h2></CardHeader>
+            <CardBody>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {data.images.map((img, i) => (
+                  <div key={i}>
+                    {img.url ? (
+                      <img
+                        src={img.url}
+                        alt={img.imageType.replace(/_/g, ' ')}
+                        className="rounded-lg w-full h-40 object-cover bg-gray-100"
+                      />
+                    ) : (
+                      <div className="rounded-lg w-full h-40 flex items-center justify-center bg-gray-100 text-xs text-gray-400">
+                        unavailable
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">{img.imageType.replace(/_/g, ' ')}</p>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
         {data.triageResult && (
           <>
             <Card className="mb-6">
@@ -131,8 +154,12 @@ export function CaseDetailPage() {
               <CardBody>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-4">
                   <div>
-                    <p className="text-xl font-bold">{formatPence(data.triageResult.totalEstimatedCost)}</p>
-                    <p className="text-xs text-gray-500">Total cost</p>
+                    <p className="text-xl font-bold">
+                      {data.triageResult.eligibility?.verdict === 'ELIGIBLE'
+                        ? formatPence(data.triageResult.totalEstimatedCost)
+                        : '—'}
+                    </p>
+                    <p className="text-xs text-gray-500">Matrix price</p>
                   </div>
                   <div>
                     <p className="text-xl font-bold">{data.triageResult.panels.length}</p>
@@ -143,14 +170,21 @@ export function CaseDetailPage() {
                     <p className="text-xs text-gray-500">Confidence</p>
                   </div>
                   <div>
-                    <p className="text-xl font-bold">{data.triageResult.totalLabourHours.toFixed(1)}h</p>
-                    <p className="text-xs text-gray-500">Labour</p>
+                    <p className="text-xl font-bold">{data.triageResult.eligibility?.verdict ?? '—'}</p>
+                    <p className="text-xs text-gray-500">Eligibility</p>
                   </div>
                 </div>
                 <p className="text-sm text-gray-700">{data.triageResult.summary}</p>
-                {data.triageResult.requiresXpertReview && (
-                  <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded p-2 text-sm text-yellow-800">
-                    Flagged for Xpert review
+                {data.triageResult.eligibility && data.triageResult.eligibility.verdict !== 'ELIGIBLE' && (
+                  <div className={`mt-3 rounded p-2 text-sm ${
+                    data.triageResult.eligibility.verdict === 'INELIGIBLE'
+                      ? 'bg-red-50 border border-red-200 text-red-800'
+                      : 'bg-yellow-50 border border-yellow-200 text-yellow-800'
+                  }`}>
+                    <p className="font-medium">{data.triageResult.eligibility.verdict}</p>
+                    <ul className="list-disc list-inside mt-1">
+                      {data.triageResult.eligibility.reasons.map((r, i) => <li key={i}>{r.detail}</li>)}
+                    </ul>
                   </div>
                 )}
               </CardBody>

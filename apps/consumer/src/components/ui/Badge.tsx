@@ -17,6 +17,7 @@ const STATUS_VARIANTS: Record<string, BadgeVariant> = {
   TRIAGE_PENDING: 'yellow',
   TRIAGE_COMPLETE: 'green',
   XPERT_REVIEW: 'purple',
+  INELIGIBLE: 'red',
   PUBLISHED: 'blue',
   ACCEPTED: 'green',
   IN_PROGRESS: 'blue',

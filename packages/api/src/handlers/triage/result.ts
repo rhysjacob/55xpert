@@ -5,6 +5,7 @@ import { getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { CasesRepository } from '@corexpert/db';
 import { NotFoundError, ForbiddenError } from '@corexpert/core';
+import { presignImages } from '../../lib/image-urls';
 
 const cases = new CasesRepository();
 
@@ -24,6 +25,11 @@ async function resultHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     throw new ForbiddenError('Not authorized to view this triage result');
   }
 
+  const images = (await presignImages(caseData.images)).map((img) => ({
+    imageType: img.imageType,
+    url: img.url,
+  }));
+
   // triageResult may be absent while the async worker is still running
   // (status TRIAGE_PENDING) — return it as null so the frontend can poll on
   // status rather than treating a pending case as an error.
@@ -34,6 +40,7 @@ async function resultHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     vehicle: caseData.vehicle,
     triageResult: caseData.triageResult ?? null,
     xpertReviews: caseData.xpertReviews,
+    images,
   });
 }
 

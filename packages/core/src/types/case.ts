@@ -8,6 +8,8 @@ export const CaseStatus = {
   TRIAGE_FAILED: 'TRIAGE_FAILED',
   TRIAGE_COMPLETE: 'TRIAGE_COMPLETE',
   XPERT_REVIEW: 'XPERT_REVIEW',
+  /** Breaks a work-acceptance rule (too many panels, damage too large, excluded panel). Terminal. */
+  INELIGIBLE: 'INELIGIBLE',
   PUBLISHED: 'PUBLISHED',
   ACCEPTED: 'ACCEPTED',
   IN_PROGRESS: 'IN_PROGRESS',

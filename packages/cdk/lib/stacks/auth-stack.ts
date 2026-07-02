@@ -57,6 +57,11 @@ export class AuthStack extends cdk.Stack {
         givenName: { required: false, mutable: true },
         familyName: { required: false, mutable: true },
       },
+      // Repairer signup captures business name + postcode (used for job matching).
+      customAttributes: {
+        business_name: new cognito.StringAttribute({ mutable: true }),
+        postcode: new cognito.StringAttribute({ mutable: true }),
+      },
       lambdaTriggers: {
         postConfirmation: postConfirmation.function,
       },

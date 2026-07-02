@@ -7,13 +7,17 @@ import { getAuthContext, requireRole } from '../../middleware/auth';
 import { parseBody, getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { logger } from '../../lib/logger';
-import { CasesRepository, docClient, TABLES } from '@corexpert/db';
-import { NotFoundError, ValidationError, calculateCosts } from '@corexpert/core';
+import { CasesRepository, CorrectionsRepository, docClient, TABLES } from '@corexpert/db';
+import { publishJobForCase } from '../../lib/publish-job';
+import { buildCorrectionRecord } from '../../lib/corrections';
+import { NotFoundError, ValidationError, quoteFromPanels, getActiveScheme } from '@corexpert/core';
 import type { XpertReview, CaseStatus, DamagePanel } from '@corexpert/core';
 
 const reviewSchema = z.object({
   decision: z.enum(['APPROVED', 'ADJUSTED', 'REJECTED']),
   notes: z.string().max(2000).optional(),
+  /** Xpert-set price in pence. Overrides the matrix suggestion when provided. */
+  overrideCost: z.number().int().nonnegative().optional(),
   adjustedPanels: z.array(z.object({
     panelName: z.string(),
     damageType: z.enum(['DENT', 'SCRATCH', 'CRACK', 'SHATTER', 'DEFORMATION', 'PAINT_DAMAGE', 'STRUCTURAL']),
@@ -25,6 +29,8 @@ const reviewSchema = z.object({
 });
 
 const cases = new CasesRepository();
+const corrections = new CorrectionsRepository();
+const scheme = getActiveScheme(process.env['WARRANTY_SCHEME']);
 
 async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const auth = getAuthContext(event);
@@ -37,36 +43,30 @@ async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   if (!caseData) {
     throw new NotFoundError('Case', caseId);
   }
-  if (caseData.status !== 'XPERT_REVIEW') {
-    throw new ValidationError('Case is not in XPERT_REVIEW status');
+  // An Xpert can review cases awaiting review, or override an auto-declined
+  // (INELIGIBLE) case.
+  if (caseData.status !== 'XPERT_REVIEW' && caseData.status !== 'INELIGIBLE') {
+    throw new ValidationError('Case is not awaiting Xpert review');
   }
 
   let adjustedCost: number | undefined;
   let adjustedPanels: DamagePanel[] | undefined;
 
-  // If decision is ADJUSTED, recalculate costs with new panels
-  if (body.decision === 'ADJUSTED' && body.adjustedPanels) {
-    const vehicleSize = caseData.vehicle?.vehicleSize ?? 'MEDIUM';
-    const costInput = body.adjustedPanels.map((p) => ({
-      panelName: p.panelName,
-      repairMethod: p.repairMethod,
-    }));
-
-    const costResult = calculateCosts({ panels: costInput, vehicleSize });
-
-    adjustedPanels = body.adjustedPanels.map((panel, index) => {
-      const panelCost = costResult.panelCosts[index];
-      return {
-        ...panel,
-        labourHours: panelCost?.labourHours ?? 0,
-        labourCost: panelCost?.labourCost ?? 0,
-        partsCost: panelCost?.partsCost ?? 0,
-        paintCost: panelCost?.paintCost ?? 0,
-        subtotal: panelCost?.subtotal ?? 0,
-      };
-    });
-
-    adjustedCost = costResult.grandTotal;
+  // Pricing (any non-rejected decision): the matrix is the suggestion; an Xpert
+  // `overrideCost` (pence) wins. This lets an Xpert price a case the matrix
+  // couldn't (e.g. an overridden ineligible case) or correct the suggestion.
+  if (body.decision !== 'REJECTED') {
+    if (body.adjustedPanels) {
+      adjustedPanels = body.adjustedPanels.map((panel) => ({ ...panel }));
+    }
+    const matrixSuggestion = body.adjustedPanels
+      ? quoteFromPanels(body.adjustedPanels.map((p) => ({ panelName: p.panelName })), scheme.matrix).total
+      : undefined;
+    if (body.overrideCost !== undefined) {
+      adjustedCost = body.overrideCost;
+    } else if (matrixSuggestion !== undefined) {
+      adjustedCost = matrixSuggestion;
+    }
   }
 
   const review: XpertReview = {
@@ -91,29 +91,52 @@ async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     },
   }));
 
-  // Update status based on decision
-  const nextStatus: CaseStatus = body.decision === 'REJECTED'
-    ? 'CANCELLED'
-    : 'TRIAGE_COMPLETE';
-  await cases.updateStatus(caseId, nextStatus);
-
-  // If adjusted, update the triage result with new panels and cost
-  if (body.decision === 'ADJUSTED' && adjustedPanels && adjustedCost !== undefined && caseData.triageResult) {
-    await cases.updateTriageResult(caseId, {
-      ...caseData.triageResult,
-      panels: adjustedPanels,
-      totalEstimatedCost: adjustedCost,
-      requiresXpertReview: false,
-    }, nextStatus);
+  // Capture the labelled AI-vs-human record whenever the Xpert changed or
+  // overrode the AI (ADJUSTED/REJECTED). Best-effort: never fail the review if
+  // the corrections write fails. caseData still holds the original AI triage.
+  if (body.decision !== 'APPROVED') {
+    try {
+      await corrections.create(buildCorrectionRecord(caseData, review));
+    } catch (error) {
+      logger.error('Failed to persist correction record', error, { caseId, reviewId: review.reviewId });
+    }
   }
 
-  logger.info('Xpert review submitted', {
+  if (body.decision === 'REJECTED') {
+    await cases.updateStatus(caseId, 'CANCELLED' as CaseStatus);
+
+    logger.info('Xpert review submitted', { caseId, reviewId: review.reviewId, decision: body.decision });
+    return ok({ review });
+  }
+
+  // Approved (or approved-with-adjustments): finalise the triage result and
+  // publish the case to The Repair Xchange so repairers can see/accept it.
+  let finalCase = { ...caseData };
+
+  // Persist adjusted panels and/or the final price before publishing so the job
+  // carries the Xpert-approved cost.
+  if ((adjustedPanels || adjustedCost !== undefined) && caseData.triageResult) {
+    const updatedTriage = {
+      ...caseData.triageResult,
+      ...(adjustedPanels ? { panels: adjustedPanels } : {}),
+      ...(adjustedCost !== undefined ? { totalEstimatedCost: adjustedCost } : {}),
+      requiresXpertReview: false,
+    };
+    // Persist as TRIAGE_COMPLETE first; publishJobForCase moves it to PUBLISHED.
+    await cases.updateTriageResult(caseId, updatedTriage, 'TRIAGE_COMPLETE' as CaseStatus);
+    finalCase = { ...finalCase, triageResult: updatedTriage };
+  }
+
+  const job = await publishJobForCase(finalCase);
+
+  logger.info('Xpert review submitted, job published', {
     caseId,
     reviewId: review.reviewId,
     decision: body.decision,
+    jobId: job.jobId,
   });
 
-  return ok({ review });
+  return ok({ review, job });
 }
 
 export const handler = withErrorHandler(reviewHandler);

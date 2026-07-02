@@ -38,12 +38,26 @@ export interface DetectedPanel {
   repairMethod: RepairMethod;
   confidenceScore: number;
   description: string;
+  /**
+   * Estimated longest dimension of the damage on this panel, in centimetres.
+   * Used by the eligibility engine to enforce the size limit (a size-5 football
+   * is ~22cm). May be undefined when the AI cannot judge scale from the images.
+   */
+  sizeEstimateCm?: number;
+  /** AI confidence (0-1) in {@link sizeEstimateCm}; low values route to Xpert review. */
+  sizeConfidence?: number;
 }
 
 /** Input to the damage assessment. */
 export interface DamageAssessmentInput {
   images: AssessmentImage[];
   vehicle: VehicleContext;
+}
+
+/** Token usage reported by the provider, for cost tracking. */
+export interface AssessmentUsage {
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 /** Output from the damage assessment. */
@@ -54,6 +68,7 @@ export interface DamageAssessmentOutput {
   requiresHumanReview: boolean;
   rawResponse: unknown;
   modelId: string;
+  usage?: AssessmentUsage;
 }
 
 /** Strategy interface for AI damage assessment providers. */

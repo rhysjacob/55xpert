@@ -10,11 +10,57 @@ import type {
 } from '../interfaces/damage-assessor';
 import { buildSystemPrompt, buildUserPrompt } from '../prompts/damage-analysis';
 import { parseTriageResponse } from '../parsers/triage-response';
+import { PANEL_NAMES } from '@corexpert/core';
 
 const DEFAULT_MODEL_ID = 'eu.anthropic.claude-sonnet-4-6';
 const DEFAULT_REGION = 'eu-west-2';
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 const MAX_TOKENS = 4096;
+
+/**
+ * Strict JSON schema for the damage assessment. Passed via `output_config.format`
+ * so the model is constrained to valid, parseable JSON (no markdown, no drift) —
+ * far more reliable than regex-extracting JSON from free text. Supported on
+ * Haiku 4.5 / Sonnet 5 / Opus 4.8 (and on Bedrock). The parser remains as a
+ * defensive fallback.
+ */
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    panels: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          panelName: { type: 'string', enum: [...PANEL_NAMES] },
+          damageType: {
+            type: 'string',
+            enum: ['DENT', 'SCRATCH', 'CRACK', 'SHATTER', 'DEFORMATION', 'PAINT_DAMAGE', 'STRUCTURAL'],
+          },
+          severity: { type: 'string', enum: ['MINOR', 'MODERATE', 'SEVERE'] },
+          repairMethod: {
+            type: 'string',
+            enum: ['REPAIR', 'REPLACE', 'BLEND', 'PDR', 'SMART_REPAIR'],
+          },
+          confidenceScore: { type: 'number' },
+          description: { type: 'string' },
+          sizeEstimateCm: { type: 'number' },
+          sizeConfidence: { type: 'number' },
+        },
+        required: [
+          'panelName', 'damageType', 'severity', 'repairMethod',
+          'confidenceScore', 'description', 'sizeEstimateCm', 'sizeConfidence',
+        ],
+      },
+    },
+    overallConfidence: { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] },
+    summary: { type: 'string' },
+    requiresHumanReview: { type: 'boolean' },
+  },
+  required: ['panels', 'overallConfidence', 'summary', 'requiresHumanReview'],
+} as const;
 
 interface BedrockMessage {
   role: string;
@@ -28,6 +74,7 @@ type BedrockContent =
 interface BedrockResponse {
   content: Array<{ type: string; text?: string }>;
   stop_reason: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
 }
 
 /** AWS Bedrock Claude provider for damage assessment. */
@@ -76,6 +123,7 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
       messages,
+      output_config: { format: { type: 'json_schema', schema: RESPONSE_SCHEMA } },
     });
 
     const command = new InvokeModelCommand({
@@ -95,7 +143,12 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
       throw new Error('No text content in Bedrock response');
     }
 
-    return parseTriageResponse(textContent.text, this.modelId, this.confidenceThreshold);
+    const result = parseTriageResponse(textContent.text, this.modelId, this.confidenceThreshold);
+    result.usage = {
+      inputTokens: responseBody.usage?.input_tokens,
+      outputTokens: responseBody.usage?.output_tokens,
+    };
+    return result;
   }
 
   async healthCheck(): Promise<boolean> {

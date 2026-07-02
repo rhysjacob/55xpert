@@ -5,6 +5,7 @@ export const TABLES = {
   JOBS: `corexpert-${STAGE}-jobs`,
   USERS: `corexpert-${STAGE}-users`,
   PAYMENTS: `corexpert-${STAGE}-payments`,
+  CORRECTIONS: `corexpert-${STAGE}-corrections`,
 } as const;
 
 export const GSI = {
@@ -23,4 +24,7 @@ export const GSI = {
   // Payments table
   PAYMENTS_STRIPE: 'stripePaymentIntentId-index',
   PAYMENTS_JOB: 'jobId-index',
+
+  // Corrections table
+  CORRECTIONS_CASE: 'caseId-createdAt-index',
 } as const;

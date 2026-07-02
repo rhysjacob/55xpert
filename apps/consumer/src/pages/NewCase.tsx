@@ -97,7 +97,17 @@ export function NewCasePage() {
     }
   };
 
+  // Distribute a multi-file selection across the still-empty slots, in order.
+  const IMAGE_SLOTS = ['REGISTRATION_PLATE', 'DAMAGE_ANGLE_1', 'DAMAGE_ANGLE_2', 'DAMAGE_ANGLE_3'] as const;
+  const handleFiles = (files: FileList) => {
+    const openSlots = IMAGE_SLOTS.filter((t) => uploadStatus[t] === 'pending');
+    Array.from(files)
+      .slice(0, openSlots.length)
+      .forEach((file, i) => handleImageUpload(openSlots[i]!, file));
+  };
+
   const allUploaded = Object.values(uploadStatus).every((s) => s === 'done');
+  const openSlotCount = Object.values(uploadStatus).filter((s) => s === 'pending').length;
 
   return (
     <Layout>
@@ -225,8 +235,28 @@ export function NewCasePage() {
             <CardHeader><h2 className="text-lg font-semibold">Upload Images</h2></CardHeader>
             <CardBody className="space-y-4">
               <p className="text-sm text-gray-500">
-                Upload 4 images of your vehicle damage for AI assessment.
+                Upload 4 images of your vehicle damage for AI assessment. You can select
+                several at once and they'll fill the empty slots below in order.
               </p>
+
+              {openSlotCount > 0 && (
+                <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-4 text-center">
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    Select photos ({openSlotCount} slot{openSlotCount === 1 ? '' : 's'} remaining)
+                  </p>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,image/heic"
+                    className="text-sm"
+                    onChange={(e) => {
+                      if (e.target.files?.length) handleFiles(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              )}
+
               {(['REGISTRATION_PLATE', 'DAMAGE_ANGLE_1', 'DAMAGE_ANGLE_2', 'DAMAGE_ANGLE_3'] as const).map((type) => {
                 const labels: Record<string, string> = {
                   REGISTRATION_PLATE: 'Registration plate (clear photo)',

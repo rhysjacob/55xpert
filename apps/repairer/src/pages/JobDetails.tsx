@@ -148,7 +148,9 @@ export function JobDetailsPage() {
                     </p>
                     <p className="text-sm text-gray-500">{panel.description}</p>
                   </div>
-                  <span className="font-medium">{formatPence(panel.subtotal)}</span>
+                  {panel.sizeEstimateCm !== undefined && (
+                    <span className="text-sm text-gray-500">~{panel.sizeEstimateCm}cm</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
                   <span className="bg-gray-100 px-2 py-0.5 rounded">{panel.damageType.replace(/_/g, ' ')}</span>
@@ -156,11 +158,6 @@ export function JobDetailsPage() {
                   <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">
                     {panel.repairMethod.replace(/_/g, ' ')}
                   </span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
-                  <span>Labour: {formatPence(panel.labourCost)} ({panel.labourHours}h)</span>
-                  <span>Parts: {formatPence(panel.partsCost)}</span>
-                  <span>Paint: {formatPence(panel.paintCost)}</span>
                 </div>
               </div>
             ))}

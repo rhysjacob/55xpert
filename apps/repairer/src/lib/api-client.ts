@@ -27,7 +27,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new Error(err.message ?? `Request failed: ${res.status}`);
   }
 
-  return res.json();
+  // API wraps payloads as { success, data }; callers expect the unwrapped data.
+  const json = await res.json();
+  return json.data as T;
 }
 
 export const api = {

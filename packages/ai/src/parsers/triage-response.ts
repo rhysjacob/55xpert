@@ -15,6 +15,8 @@ interface RawPanel {
   repairMethod?: string;
   confidenceScore?: number;
   description?: string;
+  sizeEstimateCm?: number;
+  sizeConfidence?: number;
 }
 
 const VALID_DAMAGE_TYPES = new Set(['DENT', 'SCRATCH', 'CRACK', 'SHATTER', 'DEFORMATION', 'PAINT_DAMAGE', 'STRUCTURAL']);
@@ -56,14 +58,24 @@ export function parseTriageResponse(
       typeof p.confidenceScore === 'number' &&
       typeof p.description === 'string',
     )
-    .map((p) => ({
-      panelName: p.panelName,
-      damageType: (VALID_DAMAGE_TYPES.has(p.damageType) ? p.damageType : 'SCRATCH') as DamageType,
-      severity: (VALID_SEVERITIES.has(p.severity) ? p.severity : 'MODERATE') as DamageSeverity,
-      repairMethod: (VALID_REPAIR_METHODS.has(p.repairMethod) ? p.repairMethod : 'REPAIR') as RepairMethod,
-      confidenceScore: Math.max(0, Math.min(1, p.confidenceScore)),
-      description: p.description,
-    }));
+    .map((p) => {
+      const panel: DetectedPanel = {
+        panelName: p.panelName,
+        damageType: (VALID_DAMAGE_TYPES.has(p.damageType) ? p.damageType : 'SCRATCH') as DamageType,
+        severity: (VALID_SEVERITIES.has(p.severity) ? p.severity : 'MODERATE') as DamageSeverity,
+        repairMethod: (VALID_REPAIR_METHODS.has(p.repairMethod) ? p.repairMethod : 'REPAIR') as RepairMethod,
+        confidenceScore: Math.max(0, Math.min(1, p.confidenceScore)),
+        description: p.description,
+      };
+      // Size fields are optional — only attach when the AI returned usable numbers.
+      if (typeof p.sizeEstimateCm === 'number' && Number.isFinite(p.sizeEstimateCm)) {
+        panel.sizeEstimateCm = Math.max(0, p.sizeEstimateCm);
+      }
+      if (typeof p.sizeConfidence === 'number' && Number.isFinite(p.sizeConfidence)) {
+        panel.sizeConfidence = Math.max(0, Math.min(1, p.sizeConfidence));
+      }
+      return panel;
+    });
 
   const overallConfidence = (
     VALID_CONFIDENCE.has(raw.overallConfidence ?? '')

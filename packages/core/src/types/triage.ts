@@ -54,23 +54,65 @@ export interface DamagePanel {
   repairMethod: RepairMethod;
   confidenceScore: number;
   description: string;
-  labourHours: number;
-  labourCost: number;
-  partsCost: number;
-  paintCost: number;
-  subtotal: number;
+  /** Estimated longest dimension of the damage in cm (undefined if AI couldn't judge scale). */
+  sizeEstimateCm?: number;
+  /** AI confidence (0-1) in the size estimate. */
+  sizeConfidence?: number;
+  // Per-panel cost fields are legacy (granular calculator). The matrix prices
+  // per-job, not per-panel, so these are optional and unset under matrix pricing.
+  labourHours?: number;
+  labourCost?: number;
+  partsCost?: number;
+  paintCost?: number;
+  subtotal?: number;
+}
+
+export const EligibilityVerdict = {
+  /** Passes all work-acceptance rules — proceed to pricing/publish. */
+  ELIGIBLE: 'ELIGIBLE',
+  /** Borderline or undeterminable — route to an Xpert to decide. */
+  REFER: 'REFER',
+  /** Breaks a hard rule — we will not work on this case. */
+  INELIGIBLE: 'INELIGIBLE',
+} as const;
+export type EligibilityVerdict = (typeof EligibilityVerdict)[keyof typeof EligibilityVerdict];
+
+/** A single reason contributing to an eligibility verdict. */
+export interface EligibilityReason {
+  rule: 'PANEL_COUNT' | 'DAMAGE_SIZE' | 'EXCLUDED_PANEL' | 'SIZE_UNKNOWN' | 'NON_STANDARD_REPAIR';
+  verdict: EligibilityVerdict;
+  detail: string;
+}
+
+export interface EligibilityResult {
+  verdict: EligibilityVerdict;
+  reasons: EligibilityReason[];
+}
+
+/** A single priced line from the repair matrix. */
+export interface PriceLineItem {
+  code: string;
+  label: string;
+  amount: number;
 }
 
 export interface TriageResult {
   overallConfidence: TriageConfidence;
   requiresXpertReview: boolean;
+  /** Work-acceptance outcome from the eligibility engine. */
+  eligibility?: EligibilityResult;
   aiModelId: string;
   aiRawResponse?: unknown;
   summary: string;
+  /**
+   * Matrix price (inc VAT), in pence. Only populated when the case is ELIGIBLE
+   * and priced from the matrix; 0 for INELIGIBLE cases and cases awaiting Xpert.
+   */
   totalEstimatedCost: number;
-  totalLabourHours: number;
-  totalPartsCost: number;
-  totalPaintCost: number;
+  /** Matrix version the price was computed against. */
+  matrixVersion?: string;
+  /** Matrix line items making up the price (ex-VAT), for display. */
+  priceLineItems?: PriceLineItem[];
   panels: DamagePanel[];
 }
 

@@ -5,6 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
+import { humanize } from '@corexpert/core';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
 
 interface TriageResponse {
@@ -13,6 +14,7 @@ interface TriageResponse {
   status: string;
   vehicle?: { make?: string; model?: string; year?: number };
   triageResult: TriageResult | null;
+  images?: { imageType: string; url: string }[];
 }
 
 const CONFIDENCE_COLORS: Record<TriageConfidence, string> = {
@@ -35,13 +37,15 @@ function PanelRow({ panel }: { panel: DamagePanel }) {
           </p>
           <p className="text-sm text-gray-500">{panel.description}</p>
         </div>
-        <span className="text-sm font-medium text-gray-900">{formatPence(panel.subtotal)}</span>
+        {panel.sizeEstimateCm !== undefined && (
+          <span className="text-sm text-gray-500">~{panel.sizeEstimateCm}cm</span>
+        )}
       </div>
       <div className="flex flex-wrap gap-2 text-xs">
-        <span className="bg-gray-100 px-2 py-1 rounded">{panel.damageType.replace(/_/g, ' ')}</span>
-        <span className="bg-gray-100 px-2 py-1 rounded">{panel.severity}</span>
+        <span className="bg-gray-100 px-2 py-1 rounded">{humanize(panel.damageType)}</span>
+        <span className="bg-gray-100 px-2 py-1 rounded">{humanize(panel.severity)}</span>
         <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">
-          {panel.repairMethod.replace(/_/g, ' ')}
+          {humanize(panel.repairMethod)}
         </span>
         <span className={`px-2 py-1 rounded ${
           panel.confidenceScore >= 0.8 ? 'bg-green-100 text-green-700' :
@@ -50,11 +54,6 @@ function PanelRow({ panel }: { panel: DamagePanel }) {
         }`}>
           {Math.round(panel.confidenceScore * 100)}% confidence
         </span>
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
-        <span>Labour: {formatPence(panel.labourCost)} ({panel.labourHours}h)</span>
-        <span>Parts: {formatPence(panel.partsCost)}</span>
-        <span>Paint: {formatPence(panel.paintCost)}</span>
       </div>
     </div>
   );
@@ -138,15 +137,47 @@ export function TriageResultsPage() {
           <StatusBadge status={data.status} />
         </div>
 
+        {/* Eligibility verdict banners */}
+        {triageResult.eligibility?.verdict === 'INELIGIBLE' && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="font-semibold text-red-800">We're unable to take on this repair</p>
+            <p className="text-sm text-red-700 mt-1">
+              This damage falls outside what we repair, so no price has been generated. Reasons:
+            </p>
+            <ul className="mt-2 list-disc list-inside text-sm text-red-700 space-y-1">
+              {triageResult.eligibility.reasons
+                .filter((r) => r.verdict === 'INELIGIBLE')
+                .map((r, i) => <li key={i}>{r.detail}</li>)}
+            </ul>
+          </div>
+        )}
+        {triageResult.eligibility?.verdict === 'REFER' && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="font-semibold text-yellow-800">Sent to an Xpert for review</p>
+            <p className="text-sm text-yellow-700 mt-1">
+              We need a specialist to confirm this one before quoting. Reasons:
+            </p>
+            <ul className="mt-2 list-disc list-inside text-sm text-yellow-700 space-y-1">
+              {triageResult.eligibility.reasons
+                .filter((r) => r.verdict === 'REFER')
+                .map((r, i) => <li key={i}>{r.detail}</li>)}
+            </ul>
+          </div>
+        )}
+
         {/* Summary card */}
         <Card className="mb-6">
           <CardBody>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatPence(triageResult.totalEstimatedCost)}
+                  {triageResult.eligibility?.verdict === 'ELIGIBLE'
+                    ? formatPence(triageResult.totalEstimatedCost)
+                    : '—'}
                 </p>
-                <p className="text-xs text-gray-500">Total estimated cost</p>
+                <p className="text-xs text-gray-500">
+                  {triageResult.eligibility?.verdict === 'ELIGIBLE' ? 'Fixed matrix price (inc VAT)' : 'No price'}
+                </p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
@@ -160,28 +191,51 @@ export function TriageResultsPage() {
                 </p>
                 <p className="text-xs text-gray-500">AI confidence</p>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {triageResult.totalLabourHours.toFixed(1)}h
-                </p>
-                <p className="text-xs text-gray-500">Labour hours</p>
-              </div>
             </div>
           </CardBody>
         </Card>
+
+        {/* Matrix price breakdown */}
+        {triageResult.eligibility?.verdict === 'ELIGIBLE' && triageResult.priceLineItems && (
+          <Card className="mb-6">
+            <CardHeader><h2 className="font-semibold">Price Breakdown (matrix, ex VAT)</h2></CardHeader>
+            <CardBody className="space-y-1">
+              {triageResult.priceLineItems.map((li, i) => (
+                <div key={i} className="flex justify-between text-sm">
+                  <span className="text-gray-600">{li.label}</span>
+                  <span className="font-medium">{formatPence(li.amount)}</span>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Damage photos */}
+        {data.images && data.images.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader><h2 className="font-semibold">Your Photos</h2></CardHeader>
+            <CardBody>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {data.images.map((img, i) => (
+                  <div key={i}>
+                    <img
+                      src={img.url}
+                      alt={img.imageType.replace(/_/g, ' ')}
+                      className="rounded-lg w-full h-40 object-cover bg-gray-100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{img.imageType.replace(/_/g, ' ')}</p>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {/* AI summary */}
         <Card className="mb-6">
           <CardHeader><h2 className="font-semibold">AI Summary</h2></CardHeader>
           <CardBody>
             <p className="text-gray-700">{triageResult.summary}</p>
-            {triageResult.requiresXpertReview && (
-              <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  This assessment has been flagged for expert review. An Xpert will verify the results.
-                </p>
-              </div>
-            )}
           </CardBody>
         </Card>
 
@@ -195,17 +249,17 @@ export function TriageResultsPage() {
           </CardBody>
         </Card>
 
-        {/* Actions */}
-        {(data.status === 'TRIAGE_COMPLETE') && (
-          <div className="flex justify-center gap-4">
-            <Link to="/">
-              <Button variant="secondary">Back to Dashboard</Button>
-            </Link>
-            <Link to={`/cases/${caseId}/publish`}>
-              <Button>Publish to Repair Xchange</Button>
-            </Link>
-          </div>
-        )}
+        {/* Outcome is automatic — no publish action for the consumer. */}
+        <div className="flex flex-col items-center gap-3">
+          {data.status === 'PUBLISHED' && (
+            <p className="text-center text-green-600 font-medium">
+              Automatically published to The Repair Xchange — repairers can now see this job.
+            </p>
+          )}
+          <Link to="/">
+            <Button variant="secondary">Back to Dashboard</Button>
+          </Link>
+        </div>
       </div>
     </Layout>
   );

@@ -2,14 +2,17 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../../lib/logger';
 import { prepareImageForBedrock } from '../../lib/image';
 import { CasesRepository } from '@corexpert/db';
-import { calculateCosts } from '@corexpert/core';
-import type { TriageResult, DamagePanel, CaseStatus } from '@corexpert/core';
+import { quoteFromPanels, evaluateEligibility, getActiveScheme } from '@corexpert/core';
+import type { TriageResult, DamagePanel, CaseStatus, PriceLineItem } from '@corexpert/core';
 import { createDamageAssessor } from '@corexpert/ai';
 import type { AssessmentImage, DamageAssessmentOutput } from '@corexpert/ai';
+import { resolveTriageModel } from '../../lib/model-config';
+import { publishJobForCase } from '../../lib/publish-job';
 
 const s3 = new S3Client({});
 const cases = new CasesRepository();
-const assessor = createDamageAssessor();
+// Active warranty ruleset, selected at deploy time via WARRANTY_SCHEME.
+const scheme = getActiveScheme(process.env['WARRANTY_SCHEME']);
 
 export interface TriageWorkerEvent {
   caseId: string;
@@ -48,6 +51,12 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       }),
     );
 
+    // Resolve the model per-invocation: honour the SSM debug override if the
+    // feature toggle is on, else the deploy-time default. Fails safe to default.
+    const modelId = await resolveTriageModel(process.env['AI_MODEL_ID'] ?? '');
+    const assessor = createDamageAssessor(modelId ? { modelId } : undefined);
+    logger.info('Triage model resolved', { caseId, modelId: assessor.modelId });
+
     const aiResult: DamageAssessmentOutput = await assessor.assessDamage({
       images: assessmentImages,
       vehicle: {
@@ -61,58 +70,103 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
 
     logger.info('AI assessment complete', {
       caseId,
+      model: assessor.modelId,
       panelCount: aiResult.panels.length,
       confidence: aiResult.overallConfidence,
+      inputTokens: aiResult.usage?.inputTokens,
+      outputTokens: aiResult.usage?.outputTokens,
     });
 
-    const vehicleSize = caseData.vehicle?.vehicleSize ?? 'MEDIUM';
-    const costResult = calculateCosts({
-      panels: aiResult.panels.map((panel) => ({
-        panelName: panel.panelName,
-        repairMethod: panel.repairMethod,
-      })),
-      vehicleSize,
-    });
+    // Work-acceptance gate: decide whether we take the job before pricing it.
+    // Method/severity feed the "REPLACE or SEVERE → refer to Xpert" rule.
+    const eligibility = evaluateEligibility(
+      {
+        panels: aiResult.panels.map((p) => ({
+          panelName: p.panelName,
+          sizeEstimateCm: p.sizeEstimateCm,
+          sizeConfidence: p.sizeConfidence,
+          severity: p.severity,
+          repairMethod: p.repairMethod,
+        })),
+      },
+      scheme.eligibility,
+    );
 
-    const enrichedPanels: DamagePanel[] = aiResult.panels.map((panel, index) => {
-      const panelCost = costResult.panelCosts[index];
-      return {
-        panelName: panel.panelName,
-        damageType: panel.damageType,
-        severity: panel.severity,
-        repairMethod: panel.repairMethod,
-        confidenceScore: panel.confidenceScore,
-        description: panel.description,
-        labourHours: panelCost?.labourHours ?? 0,
-        labourCost: panelCost?.labourCost ?? 0,
-        partsCost: panelCost?.partsCost ?? 0,
-        paintCost: panelCost?.paintCost ?? 0,
-        subtotal: panelCost?.subtotal ?? 0,
-      };
-    });
+    const panels: DamagePanel[] = aiResult.panels.map((panel) => ({
+      panelName: panel.panelName,
+      damageType: panel.damageType,
+      severity: panel.severity,
+      repairMethod: panel.repairMethod,
+      confidenceScore: panel.confidenceScore,
+      description: panel.description,
+      ...(panel.sizeEstimateCm !== undefined ? { sizeEstimateCm: panel.sizeEstimateCm } : {}),
+      ...(panel.sizeConfidence !== undefined ? { sizeConfidence: panel.sizeConfidence } : {}),
+    }));
+
+    // Refer to an Xpert on low AI confidence OR a borderline/undeterminable
+    // eligibility call. A hard INELIGIBLE verdict never needs review.
+    const requiresXpertReview =
+      eligibility.verdict !== 'INELIGIBLE' &&
+      (aiResult.requiresHumanReview ||
+        aiResult.overallConfidence === 'LOW' ||
+        eligibility.verdict === 'REFER');
+
+    // The matrix is the SOLE source of price. Only price a fully-eligible job;
+    // INELIGIBLE cases and cases awaiting an Xpert carry no auto-generated price.
+    let totalEstimatedCost = 0;
+    let matrixVersion: string | undefined;
+    let priceLineItems: PriceLineItem[] | undefined;
+    if (eligibility.verdict === 'ELIGIBLE') {
+      const quote = quoteFromPanels(aiResult.panels.map((p) => ({ panelName: p.panelName })), scheme.matrix);
+      totalEstimatedCost = quote.total;
+      matrixVersion = quote.matrixVersion;
+      priceLineItems = quote.lineItems;
+    }
 
     const triageResult: TriageResult = {
       overallConfidence: aiResult.overallConfidence,
-      requiresXpertReview: aiResult.requiresHumanReview || aiResult.overallConfidence === 'LOW',
+      requiresXpertReview,
+      eligibility,
       aiModelId: aiResult.modelId,
       aiRawResponse: aiResult.rawResponse,
       summary: aiResult.summary,
-      totalEstimatedCost: costResult.grandTotal,
-      totalLabourHours: costResult.totalLabourHours,
-      totalPartsCost: costResult.totalPartsCost,
-      totalPaintCost: costResult.totalPaintCost,
-      panels: enrichedPanels,
+      totalEstimatedCost,
+      ...(matrixVersion ? { matrixVersion } : {}),
+      ...(priceLineItems ? { priceLineItems } : {}),
+      panels,
     };
 
-    const nextStatus: CaseStatus = triageResult.requiresXpertReview
-      ? 'XPERT_REVIEW'
-      : 'TRIAGE_COMPLETE';
+    // Outcome is fully automatic — no consumer action:
+    //  - INELIGIBLE       → we won't work on it (terminal).
+    //  - needs Xpert      → XPERT_REVIEW (published on approval).
+    //  - ELIGIBLE + clear → auto-publish to The Repair Xchange.
+    const autoPublish = eligibility.verdict === 'ELIGIBLE' && !requiresXpertReview;
+    const nextStatus: CaseStatus =
+      eligibility.verdict === 'INELIGIBLE'
+        ? 'INELIGIBLE'
+        : requiresXpertReview
+          ? 'XPERT_REVIEW'
+          : 'TRIAGE_COMPLETE'; // transient — promoted to PUBLISHED just below
     await cases.updateTriageResult(caseId, triageResult, nextStatus);
+
+    let published = false;
+    if (autoPublish) {
+      try {
+        const job = await publishJobForCase({ ...caseData, triageResult, status: nextStatus });
+        published = true;
+        logger.info('Case auto-published to network', { caseId, jobId: job.jobId });
+      } catch (error) {
+        // Leave the case at TRIAGE_COMPLETE so it can be retried; don't fail triage.
+        logger.error('Auto-publish failed', error, { caseId });
+      }
+    }
 
     logger.info('Triage saved', {
       caseId,
-      totalCost: costResult.grandTotal,
-      requiresReview: triageResult.requiresXpertReview,
+      totalCost: totalEstimatedCost,
+      eligibility: eligibility.verdict,
+      requiresReview: requiresXpertReview,
+      status: published ? 'PUBLISHED' : nextStatus,
     });
   } catch (error) {
     logger.error('Triage worker failed', error, { caseId });

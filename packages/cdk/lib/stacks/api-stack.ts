@@ -5,6 +5,8 @@ import * as apigwAuthorizers from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import type * as cognito from 'aws-cdk-lib/aws-cognito';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as path from 'path';
 import type { Construct } from 'constructs';
@@ -19,6 +21,7 @@ export interface ApiStackProps extends cdk.StackProps {
   jobsTable: dynamodb.ITable;
   usersTable: dynamodb.ITable;
   paymentsTable: dynamodb.ITable;
+  correctionsTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -59,7 +62,22 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable];
+
+    // AI-model debug configuration (SSM). The toggle gates whether triage may use
+    // a UI-selected model instead of the deploy-time default. NOTE: a deploy
+    // resets both to these defaults (toggle off, model = configured default) —
+    // re-enable and re-pick after deploying if you were mid-experiment.
+    const modelDebugToggle = new ssm.StringParameter(this, 'ModelDebugToggle', {
+      parameterName: `/corexpert/${config.stage}/features/model-debug`,
+      stringValue: 'false',
+      description: 'Feature toggle: allow AI triage model override from the admin UI',
+    });
+    const activeModelParam = new ssm.StringParameter(this, 'ActiveModelParam', {
+      parameterName: `/corexpert/${config.stage}/ai/active-model`,
+      stringValue: config.aiModelId,
+      description: 'AI triage model used while model-debug is enabled',
+    });
 
     const sharedEnv: Record<string, string> = {
       STAGE: config.stage,
@@ -67,9 +85,11 @@ export class ApiStack extends cdk.Stack {
       JOBS_TABLE: props.jobsTable.tableName,
       USERS_TABLE: props.usersTable.tableName,
       PAYMENTS_TABLE: props.paymentsTable.tableName,
+      CORRECTIONS_TABLE: props.correctionsTable.tableName,
       IMAGE_BUCKET: props.imagesBucket.bucketName,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
+      WARRANTY_SCHEME: config.warrantyScheme,
       CONFIDENCE_THRESHOLD: config.confidenceThreshold.toString(),
       INTRODUCTION_FEE: config.introductionFee.toString(),
     };
@@ -119,7 +139,18 @@ export class ApiStack extends cdk.Stack {
     addRoute('ImagesConfirm', 'images/confirm.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/images/confirm');
 
     // ===== Vehicle Lookup =====
-    addRoute('VehicleLookup', 'vehicles/lookup.ts', apigw.HttpMethod.POST, '/api/v1/vehicles/lookup');
+    // Reg/VIN lookup calls a third-party API whose key lives in Secrets Manager.
+    // The value is created out-of-band (never in code/context); we reference it
+    // by stage-prefixed name and grant read to only this Lambda.
+    const vehicleLookupSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'VehicleLookupApiKey',
+      `corexpert/${config.stage}/vehicle-lookup-api`,
+    );
+    const vehicleLookup = addRoute('VehicleLookup', 'vehicles/lookup.ts', apigw.HttpMethod.POST, '/api/v1/vehicles/lookup');
+    vehicleLookupSecret.grantRead(vehicleLookup.function);
+    vehicleLookup.function.addEnvironment('VEHICLE_LOOKUP_SECRET_NAME', vehicleLookupSecret.secretName);
+    vehicleLookup.function.addEnvironment('ONEAUTO_BASE_URL', config.oneAutoBaseUrl);
 
     // ===== Triage (async) =====
     // The Bedrock vision call takes ~40-60s, well past the API Gateway ~30s
@@ -148,6 +179,21 @@ export class ApiStack extends cdk.Stack {
         'arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
       ],
     }));
+
+    // The worker may invoke a UI-selected model when debug is on, so it must be
+    // able to invoke any allow-listed Claude inference profile or Nova model
+    // (Nova is invoked by bare foundation-model id via the Converse API), and to
+    // read the model-config SSM parameters.
+    triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        `arn:aws:bedrock:*:${this.account}:inference-profile/eu.anthropic.claude-*`,
+        'arn:aws:bedrock:*::foundation-model/amazon.nova-*',
+        `arn:aws:bedrock:*:${this.account}:inference-profile/*.amazon.nova-*`,
+      ],
+    }));
+    modelDebugToggle.grantRead(triageWorker.function);
+    activeModelParam.grantRead(triageWorker.function);
 
     // Trigger: validates, marks pending, async-invokes the worker, returns fast.
     const triageSubmit = addRoute('TriageSubmit', 'triage/submit.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/triage', {
@@ -184,6 +230,16 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminRepairers', 'admin/repairers.ts', apigw.HttpMethod.GET, '/api/v1/admin/repairers');
     addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}');
     addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard');
+
+    // Admin debug: AI model picker (read + set), gated by the SSM toggle.
+    const modelConfigGet = addRoute('AdminModelConfigGet', 'admin/model-config.ts', apigw.HttpMethod.GET, '/api/v1/admin/model-config');
+    const modelConfigPut = addRoute('AdminModelConfigUpdate', 'admin/model-config.ts', apigw.HttpMethod.PUT, '/api/v1/admin/model-config');
+    for (const fn of [modelConfigGet.function, modelConfigPut.function]) {
+      modelDebugToggle.grantRead(fn);
+      modelDebugToggle.grantWrite(fn);
+      activeModelParam.grantRead(fn);
+      activeModelParam.grantWrite(fn);
+    }
 
     // ===== Payments =====
     addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
