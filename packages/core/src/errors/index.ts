@@ -48,3 +48,14 @@ export class UnauthorizedError extends AppError {
     this.name = 'UnauthorizedError';
   }
 }
+
+/**
+ * The caller is entitled to the resource but has not paid for it. Distinct from
+ * ForbiddenError so clients can offer checkout rather than reporting a failure.
+ */
+export class PaymentRequiredError extends AppError {
+  constructor(message = 'Payment required') {
+    super(message, 'PAYMENT_REQUIRED', 402);
+    this.name = 'PaymentRequiredError';
+  }
+}
