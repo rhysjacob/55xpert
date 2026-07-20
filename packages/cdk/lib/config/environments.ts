@@ -10,6 +10,12 @@ export interface EnvironmentConfig {
   oneAutoBaseUrl: string;
   /** Active warranty ruleset id (see packages/core/src/schemes). */
   warrantyScheme: string;
+  /**
+   * Minutes a repairer has to pay the introduction fee after accepting, before
+   * the job is released back to the Xchange. Seeds the SSM parameter; admins can
+   * change it at runtime without a redeploy.
+   */
+  paymentGraceMinutes: number;
 }
 
 export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
@@ -25,6 +31,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     // until activated in the OneAutoAPI dashboard. Flip to api.oneautoapi.com then.
     oneAutoBaseUrl: 'https://sandbox.oneautoapi.com',
     warrantyScheme: 'company-2025',
+    paymentGraceMinutes: 30,
   },
   prod: {
     stage: 'prod',
@@ -36,5 +43,6 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     aiModelId: 'eu.anthropic.claude-sonnet-4-6',
     oneAutoBaseUrl: 'https://api.oneautoapi.com',
     warrantyScheme: 'company-2025',
+    paymentGraceMinutes: 30,
   },
 };

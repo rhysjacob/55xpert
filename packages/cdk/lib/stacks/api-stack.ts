@@ -4,6 +4,8 @@ import * as apigwIntegrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as apigwAuthorizers from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import type * as cognito from 'aws-cdk-lib/aws-cognito';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
@@ -77,6 +79,15 @@ export class ApiStack extends cdk.Stack {
       parameterName: `/corexpert/${config.stage}/ai/active-model`,
       stringValue: config.aiModelId,
       description: 'AI triage model used while model-debug is enabled',
+    });
+
+    // How long an accepted job may sit unpaid before the sweeper returns it to
+    // the Xchange. Admin-settable at runtime; see the NOTE above — a deploy
+    // resets this to the default.
+    const paymentGraceParam = new ssm.StringParameter(this, 'PaymentGraceParam', {
+      parameterName: `/corexpert/${config.stage}/jobs/payment-grace-minutes`,
+      stringValue: String(config.paymentGraceMinutes),
+      description: 'Minutes a repairer has to pay the introduction fee before the job is released',
     });
 
     const sharedEnv: Record<string, string> = {
@@ -243,9 +254,42 @@ export class ApiStack extends cdk.Stack {
       activeModelParam.grantWrite(fn);
     }
 
+    // Admin: job marketplace settings (payment grace period).
+    const jobSettingsGet = addRoute('AdminJobSettingsGet', 'admin/job-settings.ts', apigw.HttpMethod.GET, '/api/v1/admin/job-settings');
+    const jobSettingsPut = addRoute('AdminJobSettingsUpdate', 'admin/job-settings.ts', apigw.HttpMethod.PUT, '/api/v1/admin/job-settings');
+    for (const fn of [jobSettingsGet.function, jobSettingsPut.function]) {
+      paymentGraceParam.grantRead(fn);
+      paymentGraceParam.grantWrite(fn);
+    }
+
     // ===== Payments =====
     addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
     addRoute('PaymentWebhook', 'payments/webhook.ts', apigw.HttpMethod.POST, '/api/v1/payments/webhook', { auth: false });
+
+    // ===== Scheduled sweep: release accepted-but-unpaid jobs =====
+    // Stripe's checkout.session.expired webhook only fires for repairers who
+    // actually started checkout; this catches those who never did, whose jobs
+    // would otherwise stay ACCEPTED and unpaid forever.
+    const releaseUnpaid = new AppLambda(this, 'JobsReleaseUnpaid', {
+      entry: path.join(handlersPath, 'jobs/release-unpaid.ts'),
+      environment: sharedEnv,
+      description: 'Scheduled: return accepted-but-unpaid jobs to the Xchange',
+      timeout: cdk.Duration.minutes(2),
+    });
+    for (const table of allTables) {
+      table.grantReadWriteData(releaseUnpaid.function);
+    }
+    paymentGraceParam.grantRead(releaseUnpaid.function);
+
+    new events.Rule(this, 'ReleaseUnpaidSchedule', {
+      description: 'Sweep accepted-but-unpaid jobs back to OPEN',
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
+      targets: [new eventsTargets.LambdaFunction(releaseUnpaid.function)],
+    });
+
+    new cdk.CfnOutput(this, 'ReleaseUnpaidFunctionName', {
+      value: releaseUnpaid.function.functionName,
+    });
 
     new cdk.CfnOutput(this, 'ApiUrl', { value: this.api.apiEndpoint });
   }
