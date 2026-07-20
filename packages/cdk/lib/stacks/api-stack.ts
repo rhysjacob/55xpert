@@ -183,11 +183,13 @@ export class ApiStack extends cdk.Stack {
     // The worker may invoke a UI-selected model when debug is on, so it must be
     // able to invoke any allow-listed Claude inference profile or Nova model
     // (Nova is invoked by bare foundation-model id via the Converse API), and to
-    // read the model-config SSM parameters.
+    // read the model-config SSM parameters. Some models (Fable 5) publish only a
+    // global.* profile in this region, so both prefixes are granted.
     triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
         `arn:aws:bedrock:*:${this.account}:inference-profile/eu.anthropic.claude-*`,
+        `arn:aws:bedrock:*:${this.account}:inference-profile/global.anthropic.claude-*`,
         'arn:aws:bedrock:*::foundation-model/amazon.nova-*',
         `arn:aws:bedrock:*:${this.account}:inference-profile/*.amazon.nova-*`,
       ],

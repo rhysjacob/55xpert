@@ -43,7 +43,8 @@ export const AVAILABLE_MODELS: AiModelOption[] = [
   { id: 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', provider: 'bedrock-claude', vision: true, pricing: { inputPerMTokUsd: 3, outputPerMTokUsd: 15 } },
   { id: 'eu.anthropic.claude-opus-4-7', label: 'Claude Opus 4.7', provider: 'bedrock-claude', vision: true, pricing: { inputPerMTokUsd: 5, outputPerMTokUsd: 25 } },
   { id: 'eu.anthropic.claude-opus-4-8', label: 'Claude Opus 4.8', provider: 'bedrock-claude', vision: true, pricing: { inputPerMTokUsd: 5, outputPerMTokUsd: 25 } },
-  { id: 'eu.anthropic.claude-fable-5', label: 'Claude Fable 5', provider: 'bedrock-claude', vision: true, pricing: { inputPerMTokUsd: 10, outputPerMTokUsd: 50 } },
+  // Fable 5 has no eu.* inference profile — only the global. one routes it.
+  { id: 'global.anthropic.claude-fable-5', label: 'Claude Fable 5', provider: 'bedrock-claude', vision: true, pricing: { inputPerMTokUsd: 10, outputPerMTokUsd: 50 } },
 ];
 
 /** Whether a model id is in the allow-list. */
