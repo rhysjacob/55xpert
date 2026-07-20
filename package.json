@@ -9,8 +9,11 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean",
+    "build:web": "pnpm --filter @corexpert/consumer --filter @corexpert/repairer --filter @corexpert/admin build",
     "deploy:dev": "cd packages/cdk && pnpm cdk deploy --all --context env=dev",
-    "deploy:prod": "cd packages/cdk && pnpm cdk deploy --all --context env=prod"
+    "deploy:prod": "cd packages/cdk && pnpm cdk deploy --all --context env=prod",
+    "deploy:web:dev": "pnpm build:web && cd packages/cdk && pnpm cdk deploy Corexpert-dev-Frontend --context env=dev",
+    "deploy:web:prod": "pnpm build:web && cd packages/cdk && pnpm cdk deploy Corexpert-prod-Frontend --context env=prod"
   },
   "engines": {
     "node": ">=20.0.0",
