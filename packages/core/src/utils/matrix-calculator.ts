@@ -18,8 +18,12 @@ export interface MatrixQuoteInput {
   panelCategory?: MatrixPaintCategory;
   /** Bumper treatment, if a bumper is part of the job. */
   bumper?: MatrixPaintCategory;
-  /** Include the flat mirror-cover / trim charge. */
+  /** How many bumpers get the {@link bumper} treatment (defaults to 1). */
+  bumperCount?: number;
+  /** Include the mirror-cover / trim charge. */
   mirrorCover?: boolean;
+  /** How many mirror covers to charge (defaults to 1 when mirrorCover is set). */
+  mirrorCount?: number;
   /** Miscellaneous fitting/parts/admin charges to add. */
   charges?: MatrixChargeKey[];
   /** Apply the +15% ADAS calibration / subcontractor uplift to the ex-VAT subtotal. */
@@ -67,18 +71,30 @@ export function calculateMatrixQuote(input: MatrixQuoteInput, matrix: MatrixConf
     });
   }
 
-  // Bumper row.
+  // Bumper row. Each bumper is a separate charge, so multiply by the count.
   if (input.bumper) {
     const price = matrix.bumperMatrix[input.bumper];
     if (price === undefined) {
       throw new ValidationError(`No matrix bumper price for ${input.bumper}`);
     }
-    lineItems.push({ code: `BUMPER_${input.bumper}`, label: `Bumper — ${MATRIX_CATEGORY_LABELS[input.bumper]}`, amount: price });
+    const count = Math.max(1, input.bumperCount ?? 1);
+    const prefix = count > 1 ? `${count}× ` : '';
+    lineItems.push({
+      code: `BUMPER_${input.bumper}`,
+      label: `${prefix}Bumper — ${MATRIX_CATEGORY_LABELS[input.bumper]}`,
+      amount: price * count,
+    });
   }
 
-  // Mirror cover / trim.
+  // Mirror cover / trim — one charge per mirror.
   if (input.mirrorCover) {
-    lineItems.push({ code: 'MIRROR_COVER', label: 'Paint/Repair Mirror Cover', amount: matrix.mirrorCoverPrice });
+    const count = Math.max(1, input.mirrorCount ?? 1);
+    const prefix = count > 1 ? `${count}× ` : '';
+    lineItems.push({
+      code: 'MIRROR_COVER',
+      label: `${prefix}Paint/Repair Mirror Cover`,
+      amount: matrix.mirrorCoverPrice * count,
+    });
   }
 
   // Misc charges.
@@ -135,8 +151,14 @@ export function deriveMatrixInput(panels: MatrixPanelInput[]): MatrixQuoteInput 
 
   const input: MatrixQuoteInput = { panelCount: standard.length as 0 | 1 | 2 | 3 | 4 };
   if (standard.length > 0) input.panelCategory = MatrixPaintCategory.REPAIR_PAINT;
-  if (bumperCount > 0) input.bumper = MatrixPaintCategory.REPAIR_PAINT;
-  if (mirrorCount > 0) input.mirrorCover = true;
+  if (bumperCount > 0) {
+    input.bumper = MatrixPaintCategory.REPAIR_PAINT;
+    input.bumperCount = bumperCount;
+  }
+  if (mirrorCount > 0) {
+    input.mirrorCover = true;
+    input.mirrorCount = mirrorCount;
+  }
 
   return input;
 }

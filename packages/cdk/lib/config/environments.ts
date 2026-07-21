@@ -16,6 +16,11 @@ export interface EnvironmentConfig {
    * change it at runtime without a redeploy.
    */
   paymentGraceMinutes: number;
+  /**
+   * Public base URL of the repairer app — used for Stripe checkout success/cancel
+   * redirects. Without it, checkout falls back to http://localhost:3001.
+   */
+  frontendUrl: string;
 }
 
 export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
@@ -32,6 +37,8 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     oneAutoBaseUrl: 'https://sandbox.oneautoapi.com',
     warrantyScheme: 'company-2025',
     paymentGraceMinutes: 30,
+    // Repairer app CloudFront distribution (Corexpert-dev-Frontend output).
+    frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
   },
   prod: {
     stage: 'prod',
@@ -44,5 +51,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     oneAutoBaseUrl: 'https://api.oneautoapi.com',
     warrantyScheme: 'company-2025',
     paymentGraceMinutes: 30,
+    // TODO: set to the production repairer domain once it exists.
+    frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
   },
 };

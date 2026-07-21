@@ -23,6 +23,18 @@ const FRAUD_PILL_STYLE: Record<'MEDIUM' | 'HIGH', string> = {
 /** Fraud-risk badge + itemised reasons shown when the case is flagged. */
 function FraudPanel({ assessment }: { assessment: FraudAssessment }) {
   const band = assessment.band as 'MEDIUM' | 'HIGH';
+
+  // The same signal can fire once per image (e.g. all 4 photos predate the
+  // incident). Group by reason code so the Xpert sees one line per signal, with
+  // the affected images listed once.
+  const grouped = Object.values(
+    assessment.reasons.reduce<Record<string, { detail: string; images: string[] }>>((acc, r) => {
+      const g = (acc[r.code] ??= { detail: r.detail, images: [] });
+      if (r.imageType) g.images.push(r.imageType.replace(/_/g, ' ').toLowerCase());
+      return acc;
+    }, {}),
+  );
+
   return (
     <Card className={`border-2 ${FRAUD_BAND_STYLE[band]}`}>
       <CardHeader>
@@ -39,13 +51,13 @@ function FraudPanel({ assessment }: { assessment: FraudAssessment }) {
           use them to guide your assessment.
         </p>
         <ul className="space-y-1.5">
-          {assessment.reasons.map((r, i) => (
+          {grouped.map((g, i) => (
             <li key={i} className="text-sm flex gap-2">
               <span className="text-gray-400">•</span>
               <span>
-                {r.detail}
-                {r.imageType && (
-                  <span className="text-gray-500"> ({r.imageType.replace(/_/g, ' ').toLowerCase()})</span>
+                {g.detail}
+                {g.images.length > 0 && (
+                  <span className="text-gray-500"> ({g.images.join(', ')})</span>
                 )}
               </span>
             </li>

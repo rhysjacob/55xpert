@@ -44,7 +44,7 @@ export function AvailableJobsPage() {
         <Card>
           <CardBody>
             <p className="text-center text-gray-500 py-8">
-              No jobs available matching your preferences right now. Check back later.
+              No open jobs on the Xchange right now. Check back later.
             </p>
           </CardBody>
         </Card>
