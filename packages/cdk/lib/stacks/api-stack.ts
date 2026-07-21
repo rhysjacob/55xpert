@@ -24,6 +24,7 @@ export interface ApiStackProps extends cdk.StackProps {
   usersTable: dynamodb.ITable;
   paymentsTable: dynamodb.ITable;
   correctionsTable: dynamodb.ITable;
+  warrantyCompaniesTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -64,7 +65,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable];
 
     // AI-model debug configuration (SSM). The toggle gates whether triage may use
     // a UI-selected model instead of the deploy-time default. NOTE: a deploy
@@ -97,6 +98,7 @@ export class ApiStack extends cdk.Stack {
       USERS_TABLE: props.usersTable.tableName,
       PAYMENTS_TABLE: props.paymentsTable.tableName,
       CORRECTIONS_TABLE: props.correctionsTable.tableName,
+      WARRANTY_COMPANIES_TABLE: props.warrantyCompaniesTable.tableName,
       IMAGE_BUCKET: props.imagesBucket.bucketName,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
@@ -261,6 +263,13 @@ export class ApiStack extends cdk.Stack {
       paymentGraceParam.grantRead(fn);
       paymentGraceParam.grantWrite(fn);
     }
+
+    // Admin: warranty companies (tenants) + their rulesets. Onboard/edit at
+    // runtime — no deploy needed to add a company with its own rules.
+    addRoute('AdminWarrantyCompaniesList', 'admin/warranty-companies.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies');
+    addRoute('AdminWarrantyCompaniesCreate', 'admin/warranty-companies.ts', apigw.HttpMethod.POST, '/api/v1/admin/warranty-companies');
+    addRoute('AdminWarrantyCompanyGet', 'admin/warranty-companies.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies/{companyId}');
+    addRoute('AdminWarrantyCompanyUpdate', 'admin/warranty-companies.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}');
 
     // ===== Payments =====
     addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');

@@ -2,7 +2,8 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../../lib/logger';
 import { prepareImageForBedrock } from '../../lib/image';
 import { CasesRepository } from '@corexpert/db';
-import { quoteFromPanels, evaluateEligibility, getActiveScheme, scoreFraud } from '@corexpert/core';
+import { quoteFromPanels, evaluateEligibility, scoreFraud } from '@corexpert/core';
+import { getSchemeForCompany } from '../../lib/warranty-company';
 import type {
   TriageResult,
   DamagePanel,
@@ -19,8 +20,6 @@ import { publishJobForCase } from '../../lib/publish-job';
 
 const s3 = new S3Client({});
 const cases = new CasesRepository();
-// Active warranty ruleset, selected at deploy time via WARRANTY_SCHEME.
-const scheme = getActiveScheme(process.env['WARRANTY_SCHEME']);
 
 export interface TriageWorkerEvent {
   caseId: string;
@@ -42,6 +41,11 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       logger.error('Triage worker: case not found', undefined, { caseId });
       return;
     }
+
+    // Resolve this case's warranty ruleset. Cases aren't tenant-stamped yet
+    // (multi-tenancy phase 3), so fall back to the deploy default company id;
+    // once stamped this becomes caseData.warrantyCompanyId.
+    const scheme = await getSchemeForCompany(process.env['WARRANTY_SCHEME']);
 
     // Fetch each image once. Extract forensics from the ORIGINAL bytes first —
     // downscaling for Bedrock destroys EXIF and alters hashes, so order matters:
