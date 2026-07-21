@@ -12,7 +12,6 @@ export const RepairMethod = {
   REPLACE: 'REPLACE',
   BLEND: 'BLEND',
   PDR: 'PDR',
-  SMART_REPAIR: 'SMART_REPAIR',
 } as const;
 export type RepairMethod = (typeof RepairMethod)[keyof typeof RepairMethod];
 

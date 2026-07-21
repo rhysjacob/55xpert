@@ -21,7 +21,8 @@ interface RawPanel {
 
 const VALID_DAMAGE_TYPES = new Set(['DENT', 'SCRATCH', 'CRACK', 'SHATTER', 'DEFORMATION', 'PAINT_DAMAGE', 'STRUCTURAL']);
 const VALID_SEVERITIES = new Set(['MINOR', 'MODERATE', 'SEVERE']);
-const VALID_REPAIR_METHODS = new Set(['REPAIR', 'REPLACE', 'BLEND', 'PDR', 'SMART_REPAIR']);
+// SMART_REPAIR was retired — any legacy/unexpected value maps to REPAIR below.
+const VALID_REPAIR_METHODS = new Set(['REPAIR', 'REPLACE', 'BLEND', 'PDR']);
 const VALID_CONFIDENCE = new Set(['HIGH', 'MEDIUM', 'LOW']);
 
 /** Parse and validate the raw AI response text into a structured output. */

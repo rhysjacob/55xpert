@@ -14,11 +14,10 @@ Valid damage types: DENT, SCRATCH, CRACK, SHATTER, DEFORMATION, PAINT_DAMAGE, ST
 Valid severity levels: MINOR, MODERATE, SEVERE
 
 Valid repair methods:
-- REPAIR: Traditional body repair (fill, sand, prime, paint)
+- REPAIR: Body repair — fill, sand, prime, paint. Covers localised scratches and scuffs as well as larger damaged areas.
 - REPLACE: Full panel replacement required
 - BLEND: Paint blending into adjacent panels
 - PDR: Paintless dent removal (minor dents, no paint damage)
-- SMART_REPAIR: Small area repair (localised scratches, scuffs)
 
 For each damaged panel, also estimate the size of the damage. Estimate the longest dimension of the damaged area in centimetres. Use visible reference objects for scale where possible (e.g. door handles ~12cm, badges ~8cm, wheel/tyre, number plate is 52cm wide). For context, a size-5 football is ~22cm across. Provide a sizeConfidence between 0.0 and 1.0 reflecting how reliably you can judge scale — if there is no usable reference object or the angle makes scale ambiguous, set a LOW sizeConfidence (< 0.5) rather than guessing.
 

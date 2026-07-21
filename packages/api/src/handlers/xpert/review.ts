@@ -22,7 +22,7 @@ const reviewSchema = z.object({
     panelName: z.string(),
     damageType: z.enum(['DENT', 'SCRATCH', 'CRACK', 'SHATTER', 'DEFORMATION', 'PAINT_DAMAGE', 'STRUCTURAL']),
     severity: z.enum(['MINOR', 'MODERATE', 'SEVERE']),
-    repairMethod: z.enum(['REPAIR', 'REPLACE', 'BLEND', 'PDR', 'SMART_REPAIR']),
+    repairMethod: z.enum(['REPAIR', 'REPLACE', 'BLEND', 'PDR']),
     confidenceScore: z.number().min(0).max(1),
     description: z.string(),
   })).optional(),

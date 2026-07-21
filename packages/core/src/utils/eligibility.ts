@@ -9,7 +9,7 @@ export interface EligibilityPanelInput {
   sizeConfidence?: number;
   /** MINOR | MODERATE | SEVERE — SEVERE is non-standard and refers to an Xpert. */
   severity?: string;
-  /** REPAIR | REPLACE | BLEND | PDR | SMART_REPAIR — REPLACE refers to an Xpert. */
+  /** REPAIR | REPLACE | BLEND | PDR — REPLACE refers to an Xpert. */
   repairMethod?: string;
 }
 

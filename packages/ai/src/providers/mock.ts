@@ -17,7 +17,7 @@ export class MockDamageAssessor implements IDamageAssessor {
           panelName: 'front_bumper',
           damageType: 'SCRATCH' as DamageType,
           severity: 'MODERATE' as DamageSeverity,
-          repairMethod: 'SMART_REPAIR' as RepairMethod,
+          repairMethod: 'REPAIR' as RepairMethod,
           confidenceScore: 0.92,
           description: 'Light scratches and scuffing across the front bumper surface',
           sizeEstimateCm: 12,

@@ -16,7 +16,6 @@ interface RepairerPreferences {
 
 const VEHICLE_SIZES = ['SMALL', 'MEDIUM', 'LARGE', 'VAN', 'SUV'];
 const REPAIR_METHODS = [
-  'SMART_REPAIR',
   'PDR',
   'PANEL_REPLACEMENT',
   'FULL_RESPRAY',

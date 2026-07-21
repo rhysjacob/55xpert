@@ -42,7 +42,7 @@ const RESPONSE_SCHEMA = {
           severity: { type: 'string', enum: ['MINOR', 'MODERATE', 'SEVERE'] },
           repairMethod: {
             type: 'string',
-            enum: ['REPAIR', 'REPLACE', 'BLEND', 'PDR', 'SMART_REPAIR'],
+            enum: ['REPAIR', 'REPLACE', 'BLEND', 'PDR'],
           },
           confidenceScore: { type: 'number' },
           description: { type: 'string' },

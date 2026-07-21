@@ -1,6 +1,6 @@
 /**
  * Turn a SNAKE_CASE / UPPER_CASE enum value into a human-readable Title Case
- * label, e.g. `SMART_REPAIR` → "Smart Repair", `PAINT_DAMAGE` → "Paint Damage".
+ * label, e.g. `PAINT_DAMAGE` → "Paint Damage", `REAR_BUMPER` → "Rear Bumper".
  * For labels that need special punctuation (e.g. "Repair & Paint"), use an
  * explicit label map instead.
  */
