@@ -1,0 +1,25 @@
+{
+  "name": "corexpert",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-powered vehicle damage assessment and repair marketplace",
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean",
+    "deploy:dev": "cd packages/cdk && pnpm cdk deploy --all --context env=dev",
+    "deploy:prod": "cd packages/cdk && pnpm cdk deploy --all --context env=prod"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1"
+  }
+}
