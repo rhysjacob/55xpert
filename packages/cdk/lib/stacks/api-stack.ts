@@ -103,7 +103,6 @@ export class ApiStack extends cdk.Stack {
       WARRANTY_SCHEME: config.warrantyScheme,
       CONFIDENCE_THRESHOLD: config.confidenceThreshold.toString(),
       INTRODUCTION_FEE: config.introductionFee.toString(),
-      FRONTEND_URL: config.frontendUrl,
     };
 
     // Helper to create a Lambda + route
