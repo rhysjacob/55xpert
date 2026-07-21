@@ -10,7 +10,7 @@ import { NotFoundError } from '@corexpert/core';
 const preferencesSchema = z.object({
   maxDistanceMiles: z.number().min(1).max(200).optional(),
   minLabourRate: z.number().min(0).optional(),
-  vehicleSizes: z.array(z.enum(['SMALL', 'MEDIUM', 'LARGE', 'VAN', 'SUV'])).optional(),
+  vehicleSizes: z.array(z.enum(['SMALL', 'MEDIUM', 'LARGE'])).optional(),
   repairMethods: z.array(z.enum(['REPAIR', 'REPLACE', 'BLEND', 'PDR'])).optional(),
   notifyByEmail: z.boolean().optional(),
 });

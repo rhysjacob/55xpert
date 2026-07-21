@@ -5,6 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { RepairMethod, VehicleSize, humanize } from '@corexpert/core';
 
 interface RepairerPreferences {
   maxDistanceMiles: number;
@@ -14,16 +15,11 @@ interface RepairerPreferences {
   notifyByEmail: boolean;
 }
 
-const VEHICLE_SIZES = ['SMALL', 'MEDIUM', 'LARGE', 'VAN', 'SUV'];
-const REPAIR_METHODS = [
-  'PDR',
-  'PANEL_REPLACEMENT',
-  'FULL_RESPRAY',
-  'SPOT_REPAIR',
-  'BLEND_AND_POLISH',
-  'HEADLIGHT_RESTORATION',
-  'BUMPER_REPAIR',
-];
+// Driven from the shared enums so the options always match what the API accepts
+// and what jobs are tagged with (was a stale hand-written list pre-dating the
+// matrix/eligibility work).
+const VEHICLE_SIZES = Object.values(VehicleSize);
+const REPAIR_METHODS = Object.values(RepairMethod);
 
 export function PreferencesPage() {
   const queryClient = useQueryClient();
@@ -120,7 +116,7 @@ export function PreferencesPage() {
                         : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    {size}
+                    {humanize(size)}
                   </button>
                 ))}
               </div>
@@ -142,7 +138,7 @@ export function PreferencesPage() {
                         : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    {method.replace(/_/g, ' ')}
+                    {humanize(method)}
                   </button>
                 ))}
               </div>
