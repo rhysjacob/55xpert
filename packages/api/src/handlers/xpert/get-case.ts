@@ -5,6 +5,7 @@ import { getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { CasesRepository } from '@corexpert/db';
 import { NotFoundError } from '@corexpert/core';
+import { withViewableImages } from '../../lib/image-urls';
 
 const cases = new CasesRepository();
 
@@ -19,7 +20,7 @@ async function getCaseHandler(event: APIGatewayProxyEventV2): Promise<APIGateway
     throw new NotFoundError('Case', caseId);
   }
 
-  return ok(caseData);
+  return ok(await withViewableImages(caseData));
 }
 
 export const handler = withErrorHandler(getCaseHandler);

@@ -12,13 +12,16 @@
     "clean": "rm -rf dist cdk.out"
   },
   "dependencies": {
+    "@corexpert/core": "workspace:*",
     "aws-cdk-lib": "^2.175.0",
-    "constructs": "^10.4.0",
-    "@corexpert/core": "workspace:*"
+    "constructs": "^10.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/source-map-support": "^0.5.10",
     "aws-cdk": "^2.175.0",
+    "source-map-support": "^0.5.21",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.0"
   }
 }

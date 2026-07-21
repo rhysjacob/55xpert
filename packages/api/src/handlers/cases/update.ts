@@ -20,6 +20,16 @@ const updateSchema = z.object({
     year: z.number().optional(),
     colour: z.string().optional(),
     vehicleSize: z.enum(['SMALL', 'MEDIUM', 'LARGE', 'VAN', 'SUV']).optional(),
+    provenance: z.object({
+      isStolen: z.boolean().optional(),
+      isScrapped: z.boolean().optional(),
+      isWrittenOff: z.boolean().optional(),
+      hasOutstandingFinance: z.boolean().optional(),
+      isImported: z.boolean().optional(),
+      isExported: z.boolean().optional(),
+      colourChanged: z.boolean().optional(),
+      plateChanged: z.boolean().optional(),
+    }).optional(),
   }).optional(),
 });
 

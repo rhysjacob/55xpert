@@ -1,6 +1,6 @@
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../lib/api-client';
+import { api, ApiError } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import type { DamagePanel } from '@corexpert/core';
@@ -28,10 +28,35 @@ export function JobDetailsPage() {
     queryKey: ['job-details', jobId],
     queryFn: () => api.get<JobFullDetails>(`/api/v1/jobs/${jobId}/details`),
     enabled: !!jobId,
+    // An unpaid job stays unpaid until the repairer acts; retrying just delays
+    // the prompt to pay.
+    retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
   });
 
   if (isLoading) {
     return <Layout><div className="text-center py-12 text-gray-500">Loading details...</div></Layout>;
+  }
+
+  // Not a failure: the job is accepted but the introduction fee is outstanding,
+  // so send the repairer back to the job page to complete checkout.
+  if (error instanceof ApiError && error.code === 'PAYMENT_REQUIRED') {
+    return (
+      <Layout>
+        <div className="max-w-lg mx-auto text-center py-12">
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Payment outstanding</h1>
+          <p className="text-gray-600 mb-6">
+            You've accepted this job, but the introduction fee hasn't been paid yet.
+            Full customer and damage details unlock once payment completes.
+          </p>
+          <Link
+            to={`/jobs/${jobId}`}
+            className="inline-block bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700"
+          >
+            Complete payment
+          </Link>
+        </div>
+      </Layout>
+    );
   }
 
   if (error || !data) {
@@ -148,7 +173,9 @@ export function JobDetailsPage() {
                     </p>
                     <p className="text-sm text-gray-500">{panel.description}</p>
                   </div>
-                  <span className="font-medium">{formatPence(panel.subtotal)}</span>
+                  {panel.sizeEstimateCm !== undefined && (
+                    <span className="text-sm text-gray-500">~{panel.sizeEstimateCm}cm</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
                   <span className="bg-gray-100 px-2 py-0.5 rounded">{panel.damageType.replace(/_/g, ' ')}</span>
@@ -156,11 +183,6 @@ export function JobDetailsPage() {
                   <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">
                     {panel.repairMethod.replace(/_/g, ' ')}
                   </span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
-                  <span>Labour: {formatPence(panel.labourCost)} ({panel.labourHours}h)</span>
-                  <span>Parts: {formatPence(panel.partsCost)}</span>
-                  <span>Paint: {formatPence(panel.paintCost)}</span>
                 </div>
               </div>
             ))}

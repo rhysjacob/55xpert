@@ -1,18 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import type { TriageResult, DamagePanel } from '@corexpert/core';
+import { quoteFromPanels, getActiveScheme } from '@corexpert/core';
+
+// Active warranty scheme, selected at build time (must match the API's WARRANTY_SCHEME).
+const scheme = getActiveScheme(import.meta.env['VITE_WARRANTY_SCHEME']);
+import type { TriageResult, DamagePanel, FraudAssessment } from '@corexpert/core';
+
+const FRAUD_BAND_STYLE: Record<'MEDIUM' | 'HIGH', string> = {
+  MEDIUM: 'border-amber-300 bg-amber-50',
+  HIGH: 'border-red-300 bg-red-50',
+};
+const FRAUD_PILL_STYLE: Record<'MEDIUM' | 'HIGH', string> = {
+  MEDIUM: 'bg-amber-500 text-white',
+  HIGH: 'bg-red-600 text-white',
+};
+
+/** Fraud-risk badge + itemised reasons shown when the case is flagged. */
+function FraudPanel({ assessment }: { assessment: FraudAssessment }) {
+  const band = assessment.band as 'MEDIUM' | 'HIGH';
+  return (
+    <Card className={`border-2 ${FRAUD_BAND_STYLE[band]}`}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">⚠ Fraud risk</h2>
+          <span className={`text-xs font-bold px-2 py-1 rounded ${FRAUD_PILL_STYLE[band]}`}>
+            {band} · {assessment.score}/100
+          </span>
+        </div>
+      </CardHeader>
+      <CardBody>
+        <p className="text-sm text-gray-700 mb-3">
+          This case was flagged and referred for review. Signals are indicative, not proof —
+          use them to guide your assessment.
+        </p>
+        <ul className="space-y-1.5">
+          {assessment.reasons.map((r, i) => (
+            <li key={i} className="text-sm flex gap-2">
+              <span className="text-gray-400">•</span>
+              <span>
+                {r.detail}
+                {r.imageType && (
+                  <span className="text-gray-500"> ({r.imageType.replace(/_/g, ' ').toLowerCase()})</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {assessment.notRun.length > 0 && (
+          <p className="text-xs text-gray-500 mt-3">
+            Checks that couldn't run: {assessment.notRun.map((c) => c.replace(/_/g, ' ').toLowerCase()).join(', ')}.
+          </p>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
 
 interface CaseData {
   caseId: string;
   referenceNo: string;
   status: string;
   vehicle?: { registrationNo: string; make: string; model: string; year: number; colour: string };
-  images: { imageType: string; s3Key: string }[];
+  images: { imageType: string; s3Key: string; url?: string }[];
   triageResult?: TriageResult;
 }
 
@@ -25,6 +79,7 @@ export function XpertReviewPage() {
   const navigate = useNavigate();
   const [decision, setDecision] = useState<'APPROVED' | 'ADJUSTED' | 'REJECTED'>('APPROVED');
   const [notes, setNotes] = useState('');
+  const [pricePounds, setPricePounds] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['xpert-case', caseId],
@@ -32,8 +87,18 @@ export function XpertReviewPage() {
     enabled: !!caseId,
   });
 
+  // Matrix suggestion from the current panels — the Xpert can accept or override.
+  const matrixSuggestionPence = data?.triageResult
+    ? quoteFromPanels(data.triageResult.panels.map((p) => ({ panelName: p.panelName })), scheme.matrix).total
+    : 0;
+
+  // Prefill the price with the matrix suggestion once the case loads.
+  useEffect(() => {
+    if (data?.triageResult) setPricePounds((matrixSuggestionPence / 100).toFixed(2));
+  }, [data, matrixSuggestionPence]);
+
   const reviewMutation = useMutation({
-    mutationFn: (payload: { decision: string; notes: string }) =>
+    mutationFn: (payload: { decision: string; notes: string; overrideCost?: number }) =>
       api.post(`/api/v1/xpert/cases/${caseId}/review`, payload),
     onSuccess: () => navigate('/xpert/queue'),
   });
@@ -58,9 +123,13 @@ export function XpertReviewPage() {
     <Layout>
       <div className="max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Xpert Review: {data.referenceNo}</h1>
-        <p className="text-gray-500 mb-6">
-          {data.vehicle?.year} {data.vehicle?.make} {data.vehicle?.model} ({data.vehicle?.colour})
-        </p>
+        {(() => {
+          const v = data.vehicle;
+          const main = [v?.year, v?.make, v?.model].filter(Boolean).join(' ');
+          const colour = v?.colour;
+          const label = colour ? (main ? `${main} (${colour})` : colour) : main;
+          return label ? <p className="text-gray-500 mb-6">{label}</p> : null;
+        })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Images */}
@@ -76,9 +145,17 @@ export function XpertReviewPage() {
                       <p className="text-xs text-gray-500 mb-1">
                         {img.imageType.replace(/_/g, ' ')}
                       </p>
-                      <div className="bg-gray-100 rounded h-40 flex items-center justify-center text-sm text-gray-400">
-                        Image: {img.s3Key.split('/').pop()}
-                      </div>
+                      {img.url ? (
+                        <img
+                          src={img.url}
+                          alt={img.imageType.replace(/_/g, ' ')}
+                          className="rounded w-full max-h-80 object-contain bg-gray-100"
+                        />
+                      ) : (
+                        <div className="bg-gray-100 rounded h-40 flex items-center justify-center text-sm text-gray-400">
+                          Image unavailable: {img.s3Key.split('/').pop()}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -88,6 +165,10 @@ export function XpertReviewPage() {
 
           {/* Right: Triage results + review form */}
           <div className="space-y-6">
+            {triage?.fraudAssessment && triage.fraudAssessment.band !== 'LOW' && (
+              <FraudPanel assessment={triage.fraudAssessment} />
+            )}
+
             {triage && (
               <Card>
                 <CardHeader>
@@ -107,8 +188,8 @@ export function XpertReviewPage() {
                       <p className="text-xs text-gray-500">Panels</p>
                     </div>
                     <div>
-                      <p className="font-bold">{triage.totalLabourHours.toFixed(1)}h</p>
-                      <p className="text-xs text-gray-500">Labour</p>
+                      <p className="font-bold">{triage.eligibility?.verdict ?? '—'}</p>
+                      <p className="text-xs text-gray-500">Eligibility</p>
                     </div>
                   </div>
 
@@ -121,7 +202,9 @@ export function XpertReviewPage() {
                           <span className="font-medium">
                             {panel.panelName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                           </span>
-                          <span>{formatPence(panel.subtotal)}</span>
+                          {panel.sizeEstimateCm !== undefined && (
+                            <span className="text-gray-500">~{panel.sizeEstimateCm}cm</span>
+                          )}
                         </div>
                         <div className="text-gray-500">
                           {panel.damageType.replace(/_/g, ' ')} | {panel.severity} | {panel.repairMethod.replace(/_/g, ' ')} | {Math.round(panel.confidenceScore * 100)}%
@@ -161,6 +244,35 @@ export function XpertReviewPage() {
                     </div>
                   </div>
 
+                  {decision !== 'REJECTED' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Price (£)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">£</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={pricePounds}
+                          onChange={(e) => setPricePounds(e.target.value)}
+                          className="w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPricePounds((matrixSuggestionPence / 100).toFixed(2))}
+                          className="text-xs text-indigo-600 hover:underline"
+                        >
+                          Reset to matrix
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Matrix suggestion: {formatPence(matrixSuggestionPence)} (inc VAT). Override as needed.
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                     <textarea
@@ -180,7 +292,15 @@ export function XpertReviewPage() {
 
                   <Button
                     loading={reviewMutation.isPending}
-                    onClick={() => reviewMutation.mutate({ decision, notes })}
+                    onClick={() =>
+                      reviewMutation.mutate({
+                        decision,
+                        notes,
+                        ...(decision !== 'REJECTED'
+                          ? { overrideCost: Math.round(parseFloat(pricePounds || '0') * 100) }
+                          : {}),
+                      })
+                    }
                     className="w-full"
                   >
                     Submit Review

@@ -4,7 +4,7 @@ import { getAuthContext, requireRole } from '../../middleware/auth';
 import { getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { JobsRepository, CasesRepository, PaymentsRepository } from '@corexpert/db';
-import { NotFoundError, ForbiddenError } from '@corexpert/core';
+import { NotFoundError, ForbiddenError, PaymentRequiredError } from '@corexpert/core';
 
 const jobs = new JobsRepository();
 const cases = new CasesRepository();
@@ -32,7 +32,7 @@ async function detailsHandler(event: APIGatewayProxyEventV2): Promise<APIGateway
     : null;
 
   if (!payment || payment.status !== 'SUCCEEDED') {
-    throw new ForbiddenError('Payment must be completed before viewing full details');
+    throw new PaymentRequiredError('Payment must be completed before viewing full details');
   }
 
   // Full case details

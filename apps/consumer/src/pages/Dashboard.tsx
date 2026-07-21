@@ -41,7 +41,7 @@ export function DashboardPage() {
       ) : (
         <div className="space-y-4">
           {data.items.map((c) => (
-            <Link key={c.caseId} to={`/cases/${c.caseId}`}>
+            <Link key={c.caseId} to={`/cases/${c.caseId}/triage`}>
               <Card className="hover:border-blue-300 transition-colors cursor-pointer">
                 <CardBody>
                   <div className="flex justify-between items-start">

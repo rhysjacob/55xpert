@@ -5,6 +5,7 @@ import { DatabaseStack } from '../lib/stacks/database-stack';
 import { AuthStack } from '../lib/stacks/auth-stack';
 import { StorageStack } from '../lib/stacks/storage-stack';
 import { ApiStack } from '../lib/stacks/api-stack';
+import { FrontendStack } from '../lib/stacks/frontend-stack';
 import { ENVIRONMENTS } from '../lib/config/environments';
 
 const app = new cdk.App();
@@ -34,9 +35,19 @@ new ApiStack(app, `${prefix}-Api`, {
   env,
   config,
   userPool: authStack.userPool,
+  userPoolClientIds: [
+    authStack.consumerClient.userPoolClientId,
+    authStack.repairerClient.userPoolClientId,
+    authStack.adminClient.userPoolClientId,
+  ],
   casesTable: databaseStack.casesTable,
   jobsTable: databaseStack.jobsTable,
   usersTable: databaseStack.usersTable,
   paymentsTable: databaseStack.paymentsTable,
+  correctionsTable: databaseStack.correctionsTable,
   imagesBucket: storageStack.imagesBucket,
 });
+
+// Static hosting for the three SPAs. Independent of the API stack: the bundles
+// are built ahead of synth with their VITE_* values already inlined.
+new FrontendStack(app, `${prefix}-Frontend`, { env, config });

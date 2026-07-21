@@ -11,6 +11,19 @@ async function getToken(): Promise<string | undefined> {
   }
 }
 
+/** An API error carrying the server's error code so callers can branch on it. */
+export class ApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(message: string, code: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = await getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -23,11 +36,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message ?? `Request failed: ${res.status}`);
+    // Errors are shaped { success: false, error: { code, message } } — the
+    // message is nested, not top-level. Non-JSON bodies (gateway faults) fall
+    // back to the status line.
+    const err = await res.json().catch(() => null);
+    throw new ApiError(
+      err?.error?.message ?? res.statusText ?? `Request failed: ${res.status}`,
+      err?.error?.code ?? 'UNKNOWN',
+      res.status,
+    );
   }
 
-  return res.json();
+  // API wraps payloads as { success, data }; callers expect the unwrapped data.
+  const json = await res.json();
+  return json.data as T;
 }
 
 export const api = {

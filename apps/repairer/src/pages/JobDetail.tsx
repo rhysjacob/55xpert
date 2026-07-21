@@ -18,6 +18,7 @@ interface JobSummary {
   location: { postcode: string; area: string };
   publishedAt: string;
   expiresAt: string;
+  images: { imageType: string; url: string }[];
 }
 
 interface AcceptResponse {
@@ -79,6 +80,26 @@ export function JobDetailPage() {
           </div>
           <StatusBadge status={job.status} />
         </div>
+
+        {job.images && job.images.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader><h2 className="font-semibold">Damage Photos</h2></CardHeader>
+            <CardBody>
+              <div className="grid grid-cols-2 gap-3">
+                {job.images.map((img, i) => (
+                  <div key={i}>
+                    <img
+                      src={img.url}
+                      alt={img.imageType.replace(/_/g, ' ')}
+                      className="rounded-lg w-full h-48 object-cover bg-gray-100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{img.imageType.replace(/_/g, ' ')}</p>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         <Card className="mb-6">
           <CardHeader><h2 className="font-semibold">Damage Summary</h2></CardHeader>

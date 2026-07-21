@@ -10,6 +10,8 @@ import { JobsPage } from './pages/Jobs';
 import { RepairersPage } from './pages/Repairers';
 import { XpertQueuePage } from './pages/XpertQueue';
 import { XpertReviewPage } from './pages/XpertReview';
+import { ModelConfigPage } from './pages/ModelConfig';
+import { JobSettingsPage } from './pages/JobSettings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +37,8 @@ export function App() {
               <Route path="/repairers" element={<RepairersPage />} />
               <Route path="/xpert/queue" element={<XpertQueuePage />} />
               <Route path="/xpert/cases/:caseId" element={<XpertReviewPage />} />
+              <Route path="/settings/model" element={<ModelConfigPage />} />
+              <Route path="/settings/jobs" element={<JobSettingsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

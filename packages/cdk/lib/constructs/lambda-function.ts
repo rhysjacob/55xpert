@@ -40,6 +40,13 @@ export class AppLambda extends Construct {
         format: nodejs.OutputFormat.ESM,
         mainFields: ['module', 'main'],
         esbuildArgs: { '--tree-shaking': 'true' },
+        // ESM output has no `require`, `__dirname`, or `__filename`, but some
+        // CommonJS dependencies (e.g. jimp -> node-fetch -> whatwg-url, and
+        // @jimp/plugin-print) reference them at load time. Shim all three so
+        // those modules load instead of crashing ("Dynamic require of X is not
+        // supported" / "__dirname is not defined in ES module scope").
+        banner:
+          'import{createRequire as __cr}from"module";import{fileURLToPath as __ftu}from"url";import{dirname as __dn}from"path";const require=__cr(import.meta.url);const __filename=__ftu(import.meta.url);const __dirname=__dn(__filename);',
       },
     });
   }

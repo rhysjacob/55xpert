@@ -32,7 +32,7 @@ export function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/cases/new" element={<NewCasePage />} />
-              <Route path="/cases/:caseId/results" element={<TriageResultsPage />} />
+              <Route path="/cases/:caseId/triage" element={<TriageResultsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

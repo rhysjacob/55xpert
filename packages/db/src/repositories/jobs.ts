@@ -70,6 +70,45 @@ export class JobsRepository {
    * Accept a job using a conditional write (fastest finger wins).
    * Returns true if accepted, false if already taken.
    */
+  /**
+   * Release an acceptance that was never paid for, returning the job to the
+   * Xchange.
+   *
+   * Conditional on the job still being ACCEPTED by the same acceptance (matched
+   * on acceptedAt) and still carrying no paymentId — the Stripe success webhook
+   * sets `acceptance.paymentId`, so a payment landing between the sweep read and
+   * this write fails the condition and the paid job is left alone.
+   *
+   * Returns true if released, false if it was paid or re-accepted meanwhile.
+   */
+  async releaseUnpaidAcceptance(jobId: string, acceptedAt: string): Promise<boolean> {
+    try {
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLES.JOBS,
+          Key: { jobId },
+          UpdateExpression: 'SET #status = :open, acceptance = :empty, updatedAt = :now',
+          ConditionExpression:
+            '#status = :accepted AND acceptance.acceptedAt = :acceptedAt AND attribute_not_exists(acceptance.paymentId)',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':open': 'OPEN',
+            ':accepted': 'ACCEPTED',
+            ':acceptedAt': acceptedAt,
+            ':empty': null,
+            ':now': new Date().toISOString(),
+          },
+        }),
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async acceptJob(jobId: string, acceptance: JobAcceptance): Promise<boolean> {
     try {
       await docClient.send(

@@ -5,6 +5,7 @@ import { getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { CasesRepository } from '@corexpert/db';
 import { NotFoundError, ForbiddenError } from '@corexpert/core';
+import { withViewableImages } from '../../lib/image-urls';
 
 const cases = new CasesRepository();
 
@@ -24,7 +25,9 @@ async function getHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProx
     throw new ForbiddenError('Not authorized to view this case');
   }
 
-  return ok(caseData);
+  // Attach short-lived presigned GET URLs so the case detail view can render
+  // the damage photos (the bucket is private).
+  return ok(await withViewableImages(caseData));
 }
 
 export const handler = withErrorHandler(getHandler);

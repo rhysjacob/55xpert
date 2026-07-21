@@ -12,6 +12,7 @@ export class DatabaseStack extends cdk.Stack {
   public readonly jobsTable: dynamodb.Table;
   public readonly usersTable: dynamodb.Table;
   public readonly paymentsTable: dynamodb.Table;
+  public readonly correctionsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -97,6 +98,21 @@ export class DatabaseStack extends cdk.Stack {
     this.paymentsTable.addGlobalSecondaryIndex({
       indexName: 'jobId-index',
       partitionKey: { name: 'jobId', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Corrections table — labelled AI-vs-Xpert decisions (evals / future RAG).
+    this.correctionsTable = new dynamodb.Table(this, 'CorrectionsTable', {
+      tableName: `corexpert-${config.stage}-corrections`,
+      partitionKey: { name: 'correctionId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+    this.correctionsTable.addGlobalSecondaryIndex({
+      indexName: 'caseId-createdAt-index',
+      partitionKey: { name: 'caseId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
   }

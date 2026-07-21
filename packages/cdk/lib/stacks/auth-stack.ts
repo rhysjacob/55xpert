@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as path from 'path';
 import type { Construct } from 'constructs';
@@ -26,7 +27,7 @@ export class AuthStack extends cdk.Stack {
       : cdk.RemovalPolicy.RETAIN;
 
     // Post-confirmation Lambda
-    const handlersPath = path.join(__dirname, '../../../../api/src/handlers');
+    const handlersPath = path.join(__dirname, '../../../api/src/handlers');
     const postConfirmation = new AppLambda(this, 'PostConfirmation', {
       entry: path.join(handlersPath, 'auth/post-confirmation.ts'),
       environment: {
@@ -55,6 +56,11 @@ export class AuthStack extends cdk.Stack {
         email: { required: true, mutable: true },
         givenName: { required: false, mutable: true },
         familyName: { required: false, mutable: true },
+      },
+      // Repairer signup captures business name + postcode (used for job matching).
+      customAttributes: {
+        business_name: new cognito.StringAttribute({ mutable: true }),
+        postcode: new cognito.StringAttribute({ mutable: true }),
       },
       lambdaTriggers: {
         postConfirmation: postConfirmation.function,
@@ -88,10 +94,19 @@ export class AuthStack extends cdk.Stack {
       preventUserExistenceErrors: true,
     });
 
-    // Pass client IDs to post-confirmation Lambda so it can determine role from client
-    postConfirmation.function.addEnvironment('CONSUMER_CLIENT_ID', this.consumerClient.userPoolClientId);
-    postConfirmation.function.addEnvironment('REPAIRER_CLIENT_ID', this.repairerClient.userPoolClientId);
-    postConfirmation.function.addEnvironment('ADMIN_CLIENT_ID', this.adminClient.userPoolClientId);
+    // The post-confirmation Lambda resolves the signup role by looking up the
+    // app client's name at runtime. Granting against a wildcard user-pool ARN
+    // (rather than this.userPool.userPoolArn) avoids a UserPool -> Lambda ->
+    // Client -> UserPool CloudFormation dependency cycle.
+    postConfirmation.function.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          'cognito-idp:DescribeUserPoolClient',
+          'cognito-idp:AdminAddUserToGroup',
+        ],
+        resources: [`arn:aws:cognito-idp:${this.region}:${this.account}:userpool/*`],
+      }),
+    );
 
     // Outputs
     new cdk.CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });

@@ -20,6 +20,8 @@ export class MockDamageAssessor implements IDamageAssessor {
           repairMethod: 'SMART_REPAIR' as RepairMethod,
           confidenceScore: 0.92,
           description: 'Light scratches and scuffing across the front bumper surface',
+          sizeEstimateCm: 12,
+          sizeConfidence: 0.8,
         },
         {
           panelName: 'front_wing_nearside',
@@ -28,6 +30,8 @@ export class MockDamageAssessor implements IDamageAssessor {
           repairMethod: 'PDR' as RepairMethod,
           confidenceScore: 0.88,
           description: 'Small dent approximately 3cm diameter, no paint damage',
+          sizeEstimateCm: 3,
+          sizeConfidence: 0.85,
         },
         {
           panelName: 'headlight_nearside',
@@ -36,6 +40,8 @@ export class MockDamageAssessor implements IDamageAssessor {
           repairMethod: 'REPLACE' as RepairMethod,
           confidenceScore: 0.95,
           description: 'Cracked headlight lens requiring full unit replacement',
+          sizeEstimateCm: 15,
+          sizeConfidence: 0.9,
         },
       ],
       overallConfidence: 'HIGH' as TriageConfidence,
