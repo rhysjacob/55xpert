@@ -13,6 +13,12 @@ import { JobDetailsPage } from './pages/JobDetails';
 import { MyJobsPage } from './pages/MyJobs';
 import { ProfilePage } from './pages/Profile';
 import { PreferencesPage } from './pages/Preferences';
+import { LandingPage } from './pages/marketing/Landing';
+import { AboutPage } from './pages/marketing/About';
+import { PartnershipsPage } from './pages/marketing/Partnerships';
+import { ForRepairersPage } from './pages/marketing/ForRepairers';
+import { ForCustomersPage } from './pages/marketing/ForCustomers';
+import { LearnMorePage } from './pages/marketing/LearnMore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,15 +32,23 @@ export function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
+            {/* Public marketing site */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/partnerships" element={<PartnershipsPage />} />
+            <Route path="/for-repairers" element={<ForRepairersPage />} />
+            <Route path="/for-customers" element={<ForCustomersPage />} />
+            <Route path="/learn-more" element={<LearnMorePage />} />
+
             {/* Public auth routes */}
             <Route path="/sign-in" element={<SignInPage />} />
             <Route path="/sign-up" element={<SignUpPage />} />
             <Route path="/confirm" element={<ConfirmSignUpPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-            {/* Protected repairer routes */}
+            {/* Protected repairer app */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/jobs" element={<AvailableJobsPage />} />
               <Route path="/jobs/:jobId" element={<JobDetailPage />} />
               <Route path="/jobs/:jobId/details" element={<JobDetailsPage />} />

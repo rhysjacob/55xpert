@@ -18,7 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-6">
               <Link to="/" className="text-xl font-bold text-indigo-600">
-                COREXPERT ADMIN
+                Repair XChange <span className="font-normal text-gray-400">Admin</span>
               </Link>
               <div className="hidden sm:flex gap-4">
                 <Link to="/" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
@@ -55,8 +55,8 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-indigo-600">COREXPERT</h1>
-        <p className="text-gray-500 mt-1">Admin Dashboard</p>
+        <h1 className="text-3xl font-bold text-indigo-600">Repair XChange</h1>
+        <p className="text-gray-500 mt-1">Admin</p>
       </div>
       <div className="w-full max-w-md">{children}</div>
     </div>
