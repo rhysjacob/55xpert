@@ -50,7 +50,7 @@ async function createCheckoutHandler(event: APIGatewayProxyEventV2): Promise<API
         currency: 'gbp',
         unit_amount: job.introductionFee,
         product_data: {
-          name: 'COREXPERT Introduction Fee',
+          name: 'Repair XChange Match Fee',
           description: `Job ${jobId} - ${job.vehicleSummary?.make} ${job.vehicleSummary?.model}`,
         },
       },

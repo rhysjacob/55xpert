@@ -17,7 +17,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <Link to="/" className="text-xl font-bold text-blue-600">
-              COREXPERT
+              Repair XChange <span className="font-normal text-gray-400">Warranty</span>
             </Link>
             {user && (
               <div className="flex items-center gap-4">
@@ -44,8 +44,8 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-blue-600">COREXPERT</h1>
-        <p className="text-gray-500 mt-1">Vehicle Damage Assessment</p>
+        <h1 className="text-3xl font-bold text-blue-600">Repair XChange</h1>
+        <p className="text-gray-500 mt-1">Warranty · Vehicle Damage Assessment</p>
       </div>
       <div className="w-full max-w-md">{children}</div>
     </div>

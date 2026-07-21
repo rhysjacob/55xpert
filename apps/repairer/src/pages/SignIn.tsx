@@ -21,7 +21,7 @@ export function SignInPage() {
 
     try {
       await signIn({ username: email, password });
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {

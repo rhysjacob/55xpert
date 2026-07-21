@@ -17,11 +17,11 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-6">
-              <Link to="/" className="text-xl font-bold text-emerald-600">
-                REPAIR XCHANGE
+              <Link to="/dashboard" className="text-xl font-bold text-emerald-600">
+                Repair XChange
               </Link>
               <div className="hidden sm:flex gap-4">
-                <Link to="/" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
+                <Link to="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
                 <Link to="/jobs" className="text-sm text-gray-600 hover:text-gray-900">Available Jobs</Link>
                 <Link to="/my-jobs" className="text-sm text-gray-600 hover:text-gray-900">My Jobs</Link>
                 <Link to="/profile" className="text-sm text-gray-600 hover:text-gray-900">Profile</Link>
@@ -52,7 +52,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-emerald-600">REPAIR XCHANGE</h1>
+        <h1 className="text-3xl font-bold text-emerald-600">Repair XChange</h1>
         <p className="text-gray-500 mt-1">Repairer Portal</p>
       </div>
       <div className="w-full max-w-md">{children}</div>
