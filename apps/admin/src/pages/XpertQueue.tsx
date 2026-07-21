@@ -14,6 +14,7 @@ interface XpertCase {
     overallConfidence: string;
     totalEstimatedCost: number;
     panels: { panelName: string }[];
+    fraudAssessment?: { band: 'LOW' | 'MEDIUM' | 'HIGH'; score: number };
   };
   createdAt: string;
 }
@@ -51,6 +52,18 @@ export function XpertQueuePage() {
                       <div className="flex items-center gap-3 mb-1">
                         <h3 className="font-semibold text-gray-900">{c.referenceNo}</h3>
                         <StatusBadge status={c.status} />
+                        {c.triageResult?.fraudAssessment &&
+                          c.triageResult.fraudAssessment.band !== 'LOW' && (
+                            <span
+                              className={`text-xs font-bold px-2 py-0.5 rounded ${
+                                c.triageResult.fraudAssessment.band === 'HIGH'
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-amber-500 text-white'
+                              }`}
+                            >
+                              ⚠ Fraud {c.triageResult.fraudAssessment.band}
+                            </span>
+                          )}
                       </div>
                       <p className="text-sm text-gray-600">
                         {c.vehicle ? `${c.vehicle.year} ${c.vehicle.make} ${c.vehicle.model}` : 'No vehicle'}

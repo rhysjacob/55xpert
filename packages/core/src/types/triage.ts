@@ -1,3 +1,5 @@
+import type { FraudAssessment } from './fraud';
+
 export const TriageConfidence = {
   HIGH: 'HIGH',
   MEDIUM: 'MEDIUM',
@@ -114,6 +116,8 @@ export interface TriageResult {
   /** Matrix line items making up the price (ex-VAT), for display. */
   priceLineItems?: PriceLineItem[];
   panels: DamagePanel[];
+  /** Fraud-risk verdict. A non-LOW band badges the case and forces Xpert review. */
+  fraudAssessment?: FraudAssessment;
 }
 
 export interface XpertReview {

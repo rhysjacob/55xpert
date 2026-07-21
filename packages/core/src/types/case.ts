@@ -1,5 +1,6 @@
 import type { Vehicle } from './vehicle';
 import type { ImageType, TriageResult, XpertReview } from './triage';
+import type { ImageForensics } from './fraud';
 
 export const CaseStatus = {
   DRAFT: 'DRAFT',
@@ -25,6 +26,8 @@ export interface CaseImage {
   originalFilename?: string;
   mimeType?: string;
   uploadedAt: string;
+  /** Forensic data extracted at triage time (EXIF, hashes). Best-effort. */
+  forensics?: ImageForensics;
 }
 
 export interface Case {

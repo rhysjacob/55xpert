@@ -2,8 +2,16 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../../lib/logger';
 import { prepareImageForBedrock } from '../../lib/image';
 import { CasesRepository } from '@corexpert/db';
-import { quoteFromPanels, evaluateEligibility, getActiveScheme } from '@corexpert/core';
-import type { TriageResult, DamagePanel, CaseStatus, PriceLineItem } from '@corexpert/core';
+import { quoteFromPanels, evaluateEligibility, getActiveScheme, scoreFraud } from '@corexpert/core';
+import type {
+  TriageResult,
+  DamagePanel,
+  CaseStatus,
+  PriceLineItem,
+  CaseImage,
+  FraudScoreImage,
+} from '@corexpert/core';
+import { extractForensics } from '../../lib/image-forensics';
 import { createDamageAssessor } from '@corexpert/ai';
 import type { AssessmentImage, DamageAssessmentOutput } from '@corexpert/ai';
 import { resolveTriageModel } from '../../lib/model-config';
@@ -35,13 +43,25 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       return;
     }
 
-    // Fetch images from S3, downscaling any that exceed Bedrock's per-image limit.
+    // Fetch each image once. Extract forensics from the ORIGINAL bytes first —
+    // downscaling for Bedrock destroys EXIF and alters hashes, so order matters:
+    // extract, then shrink.
+    const imagesWithForensics: CaseImage[] = [...caseData.images];
     const assessmentImages: AssessmentImage[] = await Promise.all(
-      caseData.images.map(async (img) => {
+      caseData.images.map(async (img, i) => {
         const response = await s3.send(
           new GetObjectCommand({ Bucket: img.s3Bucket, Key: img.s3Key }),
         );
         const bytes = await response.Body!.transformToByteArray();
+
+        // Best-effort; never let a forensic failure break triage.
+        try {
+          const forensics = await extractForensics(bytes);
+          imagesWithForensics[i] = { ...img, forensics };
+        } catch (err) {
+          logger.warn('Forensic extraction failed', { caseId, imageType: img.imageType, err: String(err) });
+        }
+
         const prepared = await prepareImageForBedrock(bytes, img.mimeType ?? 'image/jpeg');
         return {
           base64: prepared.base64,
@@ -103,13 +123,39 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       ...(panel.sizeConfidence !== undefined ? { sizeConfidence: panel.sizeConfidence } : {}),
     }));
 
+    // Fraud screen from the extracted per-image forensics (EXIF timing,
+    // provenance, GPS). Duplicate/vision/tamper signals join in later phases.
+    const fraudImages: FraudScoreImage[] = imagesWithForensics.map((img) => ({
+      imageType: img.imageType,
+      ...(img.forensics?.exif ? { exif: img.forensics.exif } : {}),
+    }));
+    const fraudAssessment = scoreFraud({
+      ...(caseData.incidentDate ? { incidentDate: caseData.incidentDate } : {}),
+      caseCreatedAt: caseData.createdAt,
+      // postcode geocoding (for the GPS check) arrives in a later phase; until
+      // then the GPS signal self-reports as notRun.
+      images: fraudImages,
+    });
+    const fraudSuspected = fraudAssessment.band !== 'LOW';
+    if (fraudSuspected) {
+      logger.warn('Fraud suspected', {
+        caseId,
+        band: fraudAssessment.band,
+        score: fraudAssessment.score,
+        reasons: fraudAssessment.reasons.map((r) => r.code),
+      });
+    }
+
     // Refer to an Xpert on low AI confidence OR a borderline/undeterminable
-    // eligibility call. A hard INELIGIBLE verdict never needs review.
+    // eligibility call. A hard INELIGIBLE verdict normally never needs review —
+    // but suspected fraud ALWAYS refers, overriding that shortcut, so a
+    // fraudulent-looking case gets human eyes even when we wouldn't take it.
     const requiresXpertReview =
-      eligibility.verdict !== 'INELIGIBLE' &&
-      (aiResult.requiresHumanReview ||
-        aiResult.overallConfidence === 'LOW' ||
-        eligibility.verdict === 'REFER');
+      fraudSuspected ||
+      (eligibility.verdict !== 'INELIGIBLE' &&
+        (aiResult.requiresHumanReview ||
+          aiResult.overallConfidence === 'LOW' ||
+          eligibility.verdict === 'REFER'));
 
     // The matrix is the SOLE source of price. Only price a fully-eligible job;
     // INELIGIBLE cases and cases awaiting an Xpert carry no auto-generated price.
@@ -134,20 +180,21 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       ...(matrixVersion ? { matrixVersion } : {}),
       ...(priceLineItems ? { priceLineItems } : {}),
       panels,
+      fraudAssessment,
     };
 
     // Outcome is fully automatic — no consumer action:
+    //  - suspected fraud  → XPERT_REVIEW, always (even if otherwise INELIGIBLE).
     //  - INELIGIBLE       → we won't work on it (terminal).
     //  - needs Xpert      → XPERT_REVIEW (published on approval).
     //  - ELIGIBLE + clear → auto-publish to The Repair Xchange.
     const autoPublish = eligibility.verdict === 'ELIGIBLE' && !requiresXpertReview;
-    const nextStatus: CaseStatus =
-      eligibility.verdict === 'INELIGIBLE'
+    const nextStatus: CaseStatus = requiresXpertReview
+      ? 'XPERT_REVIEW'
+      : eligibility.verdict === 'INELIGIBLE'
         ? 'INELIGIBLE'
-        : requiresXpertReview
-          ? 'XPERT_REVIEW'
-          : 'TRIAGE_COMPLETE'; // transient — promoted to PUBLISHED just below
-    await cases.updateTriageResult(caseId, triageResult, nextStatus);
+        : 'TRIAGE_COMPLETE'; // transient — promoted to PUBLISHED just below
+    await cases.updateTriageResult(caseId, triageResult, nextStatus, imagesWithForensics);
 
     let published = false;
     if (autoPublish) {

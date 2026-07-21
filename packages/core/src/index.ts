@@ -2,6 +2,7 @@
 export * from './types/user';
 export * from './types/case';
 export * from './types/triage';
+export * from './types/fraud';
 export * from './types/correction';
 export * from './types/vehicle';
 export * from './types/job';
@@ -18,6 +19,7 @@ export * from './schemes';
 
 // Utils
 export * from './utils/eligibility';
+export * from './utils/fraud-score';
 export * from './utils/matrix-calculator';
 export * from './utils/matching';
 export * from './utils/validators';

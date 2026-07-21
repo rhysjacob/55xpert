@@ -89,18 +89,30 @@ export class CasesRepository {
     );
   }
 
-  async updateTriageResult(caseId: string, triageResult: Case['triageResult'], status: CaseStatus): Promise<void> {
+  async updateTriageResult(
+    caseId: string,
+    triageResult: Case['triageResult'],
+    status: CaseStatus,
+    /** Optional: overwrite the images array too (e.g. with forensics attached). */
+    images?: Case['images'],
+  ): Promise<void> {
+    const values: Record<string, unknown> = {
+      ':triage': triageResult,
+      ':status': status,
+      ':now': new Date().toISOString(),
+    };
+    let expr = 'SET triageResult = :triage, #status = :status, updatedAt = :now';
+    if (images) {
+      expr += ', images = :images';
+      values[':images'] = images;
+    }
     await docClient.send(
       new UpdateCommand({
         TableName: TABLES.CASES,
         Key: { caseId },
-        UpdateExpression: 'SET triageResult = :triage, #status = :status, updatedAt = :now',
+        UpdateExpression: expr,
         ExpressionAttributeNames: { '#status': 'status' },
-        ExpressionAttributeValues: {
-          ':triage': triageResult,
-          ':status': status,
-          ':now': new Date().toISOString(),
-        },
+        ExpressionAttributeValues: values,
       }),
     );
   }

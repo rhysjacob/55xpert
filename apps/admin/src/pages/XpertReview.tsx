@@ -9,7 +9,57 @@ import { quoteFromPanels, getActiveScheme } from '@corexpert/core';
 
 // Active warranty scheme, selected at build time (must match the API's WARRANTY_SCHEME).
 const scheme = getActiveScheme(import.meta.env['VITE_WARRANTY_SCHEME']);
-import type { TriageResult, DamagePanel } from '@corexpert/core';
+import type { TriageResult, DamagePanel, FraudAssessment } from '@corexpert/core';
+
+const FRAUD_BAND_STYLE: Record<'MEDIUM' | 'HIGH', string> = {
+  MEDIUM: 'border-amber-300 bg-amber-50',
+  HIGH: 'border-red-300 bg-red-50',
+};
+const FRAUD_PILL_STYLE: Record<'MEDIUM' | 'HIGH', string> = {
+  MEDIUM: 'bg-amber-500 text-white',
+  HIGH: 'bg-red-600 text-white',
+};
+
+/** Fraud-risk badge + itemised reasons shown when the case is flagged. */
+function FraudPanel({ assessment }: { assessment: FraudAssessment }) {
+  const band = assessment.band as 'MEDIUM' | 'HIGH';
+  return (
+    <Card className={`border-2 ${FRAUD_BAND_STYLE[band]}`}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">⚠ Fraud risk</h2>
+          <span className={`text-xs font-bold px-2 py-1 rounded ${FRAUD_PILL_STYLE[band]}`}>
+            {band} · {assessment.score}/100
+          </span>
+        </div>
+      </CardHeader>
+      <CardBody>
+        <p className="text-sm text-gray-700 mb-3">
+          This case was flagged and referred for review. Signals are indicative, not proof —
+          use them to guide your assessment.
+        </p>
+        <ul className="space-y-1.5">
+          {assessment.reasons.map((r, i) => (
+            <li key={i} className="text-sm flex gap-2">
+              <span className="text-gray-400">•</span>
+              <span>
+                {r.detail}
+                {r.imageType && (
+                  <span className="text-gray-500"> ({r.imageType.replace(/_/g, ' ').toLowerCase()})</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {assessment.notRun.length > 0 && (
+          <p className="text-xs text-gray-500 mt-3">
+            Checks that couldn't run: {assessment.notRun.map((c) => c.replace(/_/g, ' ').toLowerCase()).join(', ')}.
+          </p>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
 
 interface CaseData {
   caseId: string;
@@ -115,6 +165,10 @@ export function XpertReviewPage() {
 
           {/* Right: Triage results + review form */}
           <div className="space-y-6">
+            {triage?.fraudAssessment && triage.fraudAssessment.band !== 'LOW' && (
+              <FraudPanel assessment={triage.fraudAssessment} />
+            )}
+
             {triage && (
               <Card>
                 <CardHeader>
