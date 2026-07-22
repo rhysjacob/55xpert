@@ -72,8 +72,11 @@ exists (unused), and `Payment` carries `stripeCheckoutSessionId` /
 - **Card capture at sign-up (TRX-50/44)**: Stripe Checkout in `setup` mode (or a
   Payment Element) to save a card to the Customer — no charge yet; card-only for
   MVP1.
-- **Subscription (£2/day → billed monthly)**: a Stripe **Subscription** on a
-  recurring Price. Pro-rata handled by Stripe on start/change (TRX-33).
+- **Subscription (£60/month, billed upfront on the 1st)**: a Stripe
+  **Subscription** on a flat £60/month Price. Sign-ups mid-month start
+  immediately with the **rest of the current month free** (billing anchored to
+  the 1st, `proration_behavior: none`); the first £60 charge lands on the 1st of
+  next month, monthly thereafter.
 - **Match fee per job**:
   - Option B: `stripe.invoiceItems.create({customer, amount})` at acceptance →
     rolled into the next monthly invoice.
