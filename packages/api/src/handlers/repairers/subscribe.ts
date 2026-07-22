@@ -61,8 +61,8 @@ async function subscribeHandler(event: APIGatewayProxyEventV2): Promise<APIGatew
       metadata: { userId: user.userId },
     },
     metadata: { userId: user.userId, type: 'subscription' },
-    success_url: `${FRONTEND_URL}/subscription?status=success`,
-    cancel_url: `${FRONTEND_URL}/subscription?status=cancelled`,
+    success_url: `${FRONTEND_URL}/billing?status=success`,
+    cancel_url: `${FRONTEND_URL}/billing?status=cancelled`,
   });
 
   logger.info('Subscription checkout session created', { userId: user.userId, sessionId: session.id });

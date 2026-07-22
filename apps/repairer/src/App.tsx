@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -58,6 +58,9 @@ export function App() {
               <Route path="/preferences" element={<PreferencesPage />} />
               <Route path="/billing" element={<BillingPage />} />
             </Route>
+
+            {/* Catch-all: never render a blank page on an unknown path. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
