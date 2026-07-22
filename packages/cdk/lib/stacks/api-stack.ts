@@ -263,8 +263,23 @@ export class ApiStack extends cdk.Stack {
     }
 
     // ===== Payments =====
-    addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
-    addRoute('PaymentWebhook', 'payments/webhook.ts', apigw.HttpMethod.POST, '/api/v1/payments/webhook', { auth: false });
+    // Stripe secret (JSON: { secretKey, webhookSecret }) lives in Secrets
+    // Manager, created out-of-band. Only the two payment Lambdas can read it;
+    // the value is fetched at runtime by name (STRIPE_SECRET_NAME).
+    const stripeSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'StripeApiKey',
+      `corexpert/${config.stage}/stripe`,
+    );
+    const paymentCheckout = addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
+    const paymentWebhook = addRoute('PaymentWebhook', 'payments/webhook.ts', apigw.HttpMethod.POST, '/api/v1/payments/webhook', { auth: false });
+    for (const fn of [paymentCheckout.function, paymentWebhook.function]) {
+      stripeSecret.grantRead(fn);
+      fn.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
+    }
+    // Stripe redirects back to the repairer app after checkout; without this it
+    // falls back to http://localhost:3001.
+    paymentCheckout.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
 
     // ===== Scheduled sweep: release accepted-but-unpaid jobs =====
     // Stripe's checkout.session.expired webhook only fires for repairers who
