@@ -13,6 +13,7 @@ import { JobDetailsPage } from './pages/JobDetails';
 import { MyJobsPage } from './pages/MyJobs';
 import { ProfilePage } from './pages/Profile';
 import { PreferencesPage } from './pages/Preferences';
+import { BillingPage } from './pages/Billing';
 import { LandingPage } from './pages/marketing/Landing';
 import { AboutPage } from './pages/marketing/About';
 import { PartnershipsPage } from './pages/marketing/Partnerships';
@@ -55,6 +56,7 @@ export function App() {
               <Route path="/my-jobs" element={<MyJobsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/preferences" element={<PreferencesPage />} />
+              <Route path="/billing" element={<BillingPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

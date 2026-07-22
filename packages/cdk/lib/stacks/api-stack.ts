@@ -276,6 +276,12 @@ export class ApiStack extends cdk.Stack {
     subscribe.function.addEnvironment('STRIPE_PRICE_ID', config.stripePriceId);
     subscribe.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
 
+    // Manage billing — a Stripe-hosted Billing Portal (invoices, card, cancel).
+    const billingPortal = addRoute('RepairerBillingPortal', 'repairers/billing-portal.ts', apigw.HttpMethod.POST, '/api/v1/repairer/billing-portal');
+    stripeSecret.grantRead(billingPortal.function);
+    billingPortal.function.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
+    billingPortal.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
+
     // Inbound Stripe events arrive via Amazon EventBridge (the Stripe partner
     // event source), not an HTTP webhook — no public endpoint, no signing
     // secret, and EventBridge gives retries/DLQ + fan-out. Wired only once the
