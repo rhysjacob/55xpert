@@ -10,7 +10,8 @@ import { logger } from '../../lib/logger';
 import { CasesRepository, CorrectionsRepository, docClient, TABLES } from '@corexpert/db';
 import { publishJobForCase } from '../../lib/publish-job';
 import { buildCorrectionRecord } from '../../lib/corrections';
-import { NotFoundError, ValidationError, quoteFromPanels, getActiveScheme } from '@corexpert/core';
+import { NotFoundError, ValidationError, quoteFromPanels } from '@corexpert/core';
+import { getSchemeForCompany } from '../../lib/warranty-company';
 import type { XpertReview, CaseStatus, DamagePanel } from '@corexpert/core';
 
 const reviewSchema = z.object({
@@ -30,8 +31,6 @@ const reviewSchema = z.object({
 
 const cases = new CasesRepository();
 const corrections = new CorrectionsRepository();
-const scheme = getActiveScheme(process.env['WARRANTY_SCHEME']);
-
 async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const auth = getAuthContext(event);
   requireRole(auth, 'XPERT');
@@ -43,6 +42,9 @@ async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   if (!caseData) {
     throw new NotFoundError('Case', caseId);
   }
+  // Resolve the case's warranty ruleset (tenant-aware; default until cases are
+  // stamped in multi-tenancy phase 3).
+  const scheme = await getSchemeForCompany(process.env['WARRANTY_SCHEME']);
   // An Xpert can review cases awaiting review, or override an auto-declined
   // (INELIGIBLE) case.
   if (caseData.status !== 'XPERT_REVIEW' && caseData.status !== 'INELIGIBLE') {

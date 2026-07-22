@@ -3,6 +3,7 @@ export * from './types/user';
 export * from './types/case';
 export * from './types/triage';
 export * from './types/fraud';
+export * from './types/warranty-company';
 export * from './types/correction';
 export * from './types/vehicle';
 export * from './types/job';
