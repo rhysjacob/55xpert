@@ -1,54 +1,34 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import Stripe from 'stripe';
-import { jsonResponse } from '../../lib/response';
+import type { EventBridgeEvent } from 'aws-lambda';
+import type Stripe from 'stripe';
 import { logger } from '../../lib/logger';
 import { PaymentsRepository } from '@corexpert/db';
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLES } from '@corexpert/db';
-import { getStripe, getStripeWebhookSecret } from '../../lib/stripe';
 
 const payments = new PaymentsRepository();
 
 /**
- * Stripe webhook handler. No JWT auth — validates via Stripe signature.
+ * Processes Stripe events delivered via Amazon EventBridge (the Stripe partner
+ * event source). No signature verification and no public endpoint — delivery is
+ * authenticated through the Stripe↔AWS partner integration, and EventBridge
+ * provides retries/DLQ. The Stripe Event object arrives in `event.detail`.
  */
-export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
-  const signature = event.headers['stripe-signature'];
-  if (!signature || !event.body) {
-    return jsonResponse(400, { error: 'Missing signature or body' });
-  }
-
-  let stripeEvent: Stripe.Event;
-  try {
-    const stripe = await getStripe();
-    const webhookSecret = await getStripeWebhookSecret();
-    stripeEvent = stripe.webhooks.constructEvent(event.body, signature, webhookSecret);
-  } catch (err) {
-    logger.error('Stripe webhook signature verification failed', err);
-    return jsonResponse(400, { error: 'Invalid signature' });
-  }
-
-  logger.info('Stripe webhook received', {
-    type: stripeEvent.type,
-    id: stripeEvent.id,
-  });
+export async function handler(
+  event: EventBridgeEvent<string, Stripe.Event>,
+): Promise<void> {
+  const stripeEvent = event.detail;
+  logger.info('Stripe event via EventBridge', { type: stripeEvent.type, id: stripeEvent.id });
 
   switch (stripeEvent.type) {
-    case 'checkout.session.completed': {
-      const session = stripeEvent.data.object as Stripe.Checkout.Session;
-      await handleCheckoutCompleted(session);
+    case 'checkout.session.completed':
+      await handleCheckoutCompleted(stripeEvent.data.object as Stripe.Checkout.Session);
       break;
-    }
-    case 'checkout.session.expired': {
-      const session = stripeEvent.data.object as Stripe.Checkout.Session;
-      await handleCheckoutExpired(session);
+    case 'checkout.session.expired':
+      await handleCheckoutExpired(stripeEvent.data.object as Stripe.Checkout.Session);
       break;
-    }
     default:
-      logger.info('Unhandled webhook event type', { type: stripeEvent.type });
+      logger.info('Unhandled Stripe event type', { type: stripeEvent.type });
   }
-
-  return jsonResponse(200, { received: true });
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
