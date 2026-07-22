@@ -41,3 +41,8 @@ coverage/
 # Misc
 *.log
 *.tsbuildinfo
+
+# Spec/working files kept out of the repo
+*.xlsx
+*.xls
+*.code-workspace
