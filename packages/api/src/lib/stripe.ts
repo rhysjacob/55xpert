@@ -43,6 +43,24 @@ export async function getStripe(): Promise<Stripe> {
 }
 
 /**
+ * Create a Stripe Billing Portal session — a fully Stripe-hosted page where the
+ * repairer views invoices, updates their card, and cancels. Returns the URL to
+ * redirect to. (Delegates invoice history / card update / cancellation to
+ * Stripe; nothing to build our side.)
+ */
+export async function createBillingPortalSession(params: {
+  customerId: string;
+  returnUrl: string;
+}): Promise<string> {
+  const stripe = await getStripe();
+  const session = await stripe.billingPortal.sessions.create({
+    customer: params.customerId,
+    return_url: params.returnUrl,
+  });
+  return session.url;
+}
+
+/**
  * Add a one-off charge (the match fee) as a pending invoice item on the
  * customer. It auto-attaches to their next monthly subscription invoice, so the
  * repairer pays subscription + accrued match fees in one monthly charge.
