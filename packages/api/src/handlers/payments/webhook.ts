@@ -12,9 +12,10 @@ const users = new UsersRepository();
  * authenticated through the Stripe↔AWS partner integration, and EventBridge
  * provides retries/DLQ. The Stripe Event object arrives in `event.detail`.
  *
- * Under monthly billing the only inbound events we act on are the repairer
- * subscription lifecycle (created/updated/deleted). Match fees are Stripe
- * invoice items that flow onto the monthly invoice — no per-event handling.
+ * Under monthly billing we act on the repairer subscription lifecycle
+ * (created/updated/deleted — these drive the stored status the accept-gate
+ * checks) and log failed monthly invoices as the hook for follow-up. Match fees
+ * are Stripe invoice items that flow onto the monthly invoice.
  */
 export async function handler(
   event: EventBridgeEvent<string, Stripe.Event>,
@@ -33,9 +34,33 @@ export async function handler(
     case 'checkout.session.completed':
       await handleCheckoutCompleted(stripeEvent.data.object as Stripe.Checkout.Session);
       break;
+    case 'invoice.payment_failed':
+      await handleInvoicePaymentFailed(stripeEvent.data.object as Stripe.Invoice);
+      break;
     default:
       logger.info('Unhandled Stripe event type', { type: stripeEvent.type });
   }
+}
+
+/**
+ * A repairer's monthly invoice payment failed (TRX-35). The subscription-status
+ * transition (→ past_due / unpaid after Stripe's dunning retries) is applied by
+ * the paired customer.subscription.updated event — and the accept-gate blocks on
+ * that — so we deliberately do NOT force a status here (that would suspend on a
+ * transient decline before Stripe retries). This is the hook for the follow-up
+ * process (notify the repairer / escalate); the ids map back to the repairer via
+ * the subscription metadata snapshot on the invoice.
+ */
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const userId = invoice.subscription_details?.metadata?.['userId'];
+  logger.warn('Repairer invoice payment failed', {
+    userId,
+    invoiceId: invoice.id,
+    customer: typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id,
+    amountDue: invoice.amount_due,
+    attemptCount: invoice.attempt_count,
+    nextPaymentAttempt: invoice.next_payment_attempt,
+  });
 }
 
 /** Keep the repairer's stored subscription status in sync with Stripe. */
