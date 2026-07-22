@@ -41,3 +41,21 @@ export async function getStripe(): Promise<Stripe> {
   loaded = new Stripe(parsed.secretKey, { apiVersion: STRIPE_API_VERSION });
   return loaded;
 }
+
+/**
+ * Create a Stripe Customer — the anchor for a repairer's subscription, saved
+ * card, and invoicing. Returns the new customer id.
+ */
+export async function createStripeCustomer(params: {
+  email: string;
+  name?: string;
+  metadata?: Record<string, string>;
+}): Promise<string> {
+  const stripe = await getStripe();
+  const customer = await stripe.customers.create({
+    email: params.email,
+    ...(params.name ? { name: params.name } : {}),
+    ...(params.metadata ? { metadata: params.metadata } : {}),
+  });
+  return customer.id;
+}

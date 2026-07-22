@@ -6,7 +6,8 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { UsersRepository } from '@corexpert/db';
 import { logger } from '../../lib/logger';
-import type { User, UserRole } from '@corexpert/core';
+import { createStripeCustomer } from '../../lib/stripe';
+import type { User, UserRole, RepairerProfile } from '@corexpert/core';
 
 const users = new UsersRepository();
 const cognito = new CognitoIdentityProviderClient({});
@@ -33,14 +34,44 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
   const role = await resolveRole(event.userPoolId, clientId);
   const now = new Date().toISOString();
 
+  const userId = userAttributes['sub'] ?? '';
+  const email = userAttributes['email'] ?? '';
+  const firstName = userAttributes['given_name'] ?? '';
+  const lastName = userAttributes['family_name'] ?? '';
+
+  // Repairers get a profile seeded from the sign-up form plus a Stripe Customer
+  // — the anchor for their subscription, saved card and invoicing. Customer
+  // creation is best-effort: a Stripe hiccup must never fail account
+  // confirmation, so on failure we still provision the user (a later checkout/
+  // subscription step backfills the customer).
+  let repairer: RepairerProfile | undefined;
+  if (role === 'REPAIRER') {
+    const businessName = userAttributes['custom:business_name'] ?? '';
+    repairer = { businessName, isVerified: false };
+    const postcode = userAttributes['custom:postcode'];
+    if (postcode) repairer.postcode = postcode;
+    try {
+      const customerId = await createStripeCustomer({
+        email,
+        name: businessName || `${firstName} ${lastName}`.trim() || email,
+        metadata: { userId, ...(businessName ? { businessName } : {}) },
+      });
+      repairer.stripeCustomerId = customerId;
+      logger.info('Stripe customer created for repairer', { userId, customerId });
+    } catch (err) {
+      logger.error('Stripe customer creation failed; will backfill later', { userId, err: String(err) });
+    }
+  }
+
   const user: User = {
-    userId: userAttributes['sub'] ?? '',
-    email: userAttributes['email'] ?? '',
-    firstName: userAttributes['given_name'] ?? '',
-    lastName: userAttributes['family_name'] ?? '',
+    userId,
+    email,
+    firstName,
+    lastName,
     phone: userAttributes['phone_number'],
     role,
     isActive: true,
+    ...(repairer ? { repairer } : {}),
     createdAt: now,
     updatedAt: now,
   };
