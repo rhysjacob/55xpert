@@ -3,12 +3,11 @@ import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
 import { getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
-import { JobsRepository, CasesRepository, PaymentsRepository } from '@corexpert/db';
-import { NotFoundError, ForbiddenError, PaymentRequiredError } from '@corexpert/core';
+import { JobsRepository, CasesRepository } from '@corexpert/db';
+import { NotFoundError, ForbiddenError } from '@corexpert/core';
 
 const jobs = new JobsRepository();
 const cases = new CasesRepository();
-const payments = new PaymentsRepository();
 
 async function detailsHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const auth = getAuthContext(event);
@@ -21,18 +20,11 @@ async function detailsHandler(event: APIGatewayProxyEventV2): Promise<APIGateway
     throw new NotFoundError('Job', jobId);
   }
 
-  // Only the accepting repairer can see full details
+  // Only the accepting repairer can see full details. Access is granted on
+  // acceptance — the match fee accrues to their monthly invoice (no per-job
+  // payment gate under monthly billing).
   if (!job.acceptance || job.acceptance.repairerId !== auth.userId) {
     throw new ForbiddenError('Only the accepting repairer can view full job details');
-  }
-
-  // Check payment is complete
-  const payment = job.acceptance.paymentId
-    ? await payments.getById(job.acceptance.paymentId)
-    : null;
-
-  if (!payment || payment.status !== 'SUCCEEDED') {
-    throw new PaymentRequiredError('Payment must be completed before viewing full details');
   }
 
   // Full case details

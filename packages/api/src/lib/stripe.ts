@@ -43,6 +43,29 @@ export async function getStripe(): Promise<Stripe> {
 }
 
 /**
+ * Add a one-off charge (the match fee) as a pending invoice item on the
+ * customer. It auto-attaches to their next monthly subscription invoice, so the
+ * repairer pays subscription + accrued match fees in one monthly charge.
+ * Returns the invoice item id.
+ */
+export async function createMatchFeeInvoiceItem(params: {
+  customerId: string;
+  amountPence: number;
+  description: string;
+  metadata?: Record<string, string>;
+}): Promise<string> {
+  const stripe = await getStripe();
+  const item = await stripe.invoiceItems.create({
+    customer: params.customerId,
+    amount: params.amountPence,
+    currency: 'gbp',
+    description: params.description,
+    ...(params.metadata ? { metadata: params.metadata } : {}),
+  });
+  return item.id;
+}
+
+/**
  * Create a Stripe Customer — the anchor for a repairer's subscription, saved
  * card, and invoicing. Returns the new customer id.
  */

@@ -25,6 +25,9 @@ export interface JobVehicleSummary {
 export interface JobAcceptance {
   repairerId: string;
   acceptedAt: string;
+  /** Stripe invoice-item id for the match fee accrued at acceptance. */
+  matchFeeInvoiceItemId?: string;
+  /** @deprecated Legacy per-job payment id (pre-monthly-billing). */
   paymentId?: string;
 }
 

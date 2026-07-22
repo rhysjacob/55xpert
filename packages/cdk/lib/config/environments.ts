@@ -11,12 +11,6 @@ export interface EnvironmentConfig {
   /** Active warranty ruleset id (see packages/core/src/schemes). */
   warrantyScheme: string;
   /**
-   * Minutes a repairer has to pay the introduction fee after accepting, before
-   * the job is released back to the Xchange. Seeds the SSM parameter; admins can
-   * change it at runtime without a redeploy.
-   */
-  paymentGraceMinutes: number;
-  /**
    * Public base URL of the repairer app — Stripe checkout success/cancel
    * redirects return here (else they fall back to http://localhost:3001).
    */
@@ -45,7 +39,6 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     // until activated in the OneAutoAPI dashboard. Flip to api.oneautoapi.com then.
     oneAutoBaseUrl: 'https://sandbox.oneautoapi.com',
     warrantyScheme: 'company-2025',
-    paymentGraceMinutes: 30,
     // Repairer app CloudFront distribution (Corexpert-dev-Frontend output).
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
     // Stripe (test-mode) EventBridge partner source — associated with an event
@@ -63,7 +56,6 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     aiModelId: 'eu.anthropic.claude-sonnet-4-6',
     oneAutoBaseUrl: 'https://api.oneautoapi.com',
     warrantyScheme: 'company-2025',
-    paymentGraceMinutes: 30,
     // TODO: set to the production repairer domain once it exists.
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
     stripeEventSourceName: '',

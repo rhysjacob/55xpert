@@ -109,6 +109,18 @@ export class JobsRepository {
     }
   }
 
+  /** Record the Stripe match-fee invoice-item id on an accepted job. */
+  async setMatchFeeInvoiceItem(jobId: string, invoiceItemId: string): Promise<void> {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.JOBS,
+        Key: { jobId },
+        UpdateExpression: 'SET acceptance.matchFeeInvoiceItemId = :id, updatedAt = :now',
+        ExpressionAttributeValues: { ':id': invoiceItemId, ':now': new Date().toISOString() },
+      }),
+    );
+  }
+
   async acceptJob(jobId: string, acceptance: JobAcceptance): Promise<boolean> {
     try {
       await docClient.send(

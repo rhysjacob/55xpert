@@ -82,15 +82,6 @@ export class ApiStack extends cdk.Stack {
       description: 'AI triage model used while model-debug is enabled',
     });
 
-    // How long an accepted job may sit unpaid before the sweeper returns it to
-    // the Xchange. Admin-settable at runtime; see the NOTE above — a deploy
-    // resets this to the default.
-    const paymentGraceParam = new ssm.StringParameter(this, 'PaymentGraceParam', {
-      parameterName: `/corexpert/${config.stage}/jobs/payment-grace-minutes`,
-      stringValue: String(config.paymentGraceMinutes),
-      description: 'Minutes a repairer has to pay the introduction fee before the job is released',
-    });
-
     const sharedEnv: Record<string, string> = {
       STAGE: config.stage,
       CASES_TABLE: props.casesTable.tableName,
@@ -224,7 +215,7 @@ export class ApiStack extends cdk.Stack {
     addRoute('JobPublish', 'jobs/publish.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/publish');
     addRoute('JobsList', 'jobs/list.ts', apigw.HttpMethod.GET, '/api/v1/jobs');
     addRoute('JobsGet', 'jobs/get.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}');
-    addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept');
+    const jobsAccept = addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept');
     addRoute('JobsDetails', 'jobs/details.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}/details');
 
     // ===== Repairer =====
@@ -256,14 +247,6 @@ export class ApiStack extends cdk.Stack {
       activeModelParam.grantWrite(fn);
     }
 
-    // Admin: job marketplace settings (payment grace period).
-    const jobSettingsGet = addRoute('AdminJobSettingsGet', 'admin/job-settings.ts', apigw.HttpMethod.GET, '/api/v1/admin/job-settings');
-    const jobSettingsPut = addRoute('AdminJobSettingsUpdate', 'admin/job-settings.ts', apigw.HttpMethod.PUT, '/api/v1/admin/job-settings');
-    for (const fn of [jobSettingsGet.function, jobSettingsPut.function]) {
-      paymentGraceParam.grantRead(fn);
-      paymentGraceParam.grantWrite(fn);
-    }
-
     // Admin: warranty companies (tenants) + their rulesets. Onboard/edit at
     // runtime — no deploy needed to add a company with its own rules.
     addRoute('AdminWarrantyCompaniesList', 'admin/warranty-companies.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies');
@@ -271,20 +254,19 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminWarrantyCompanyGet', 'admin/warranty-companies.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies/{companyId}');
     addRoute('AdminWarrantyCompanyUpdate', 'admin/warranty-companies.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}');
 
-    // ===== Payments =====
+    // ===== Payments (Stripe) =====
     // Stripe secret (JSON: { secretKey }) lives in Secrets Manager, created
-    // out-of-band. Only the checkout Lambda reads it; fetched at runtime by name.
+    // out-of-band; fetched at runtime by name.
     const stripeSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
       'StripeApiKey',
       `corexpert/${config.stage}/stripe`,
     );
-    const paymentCheckout = addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
-    stripeSecret.grantRead(paymentCheckout.function);
-    paymentCheckout.function.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
-    // Stripe redirects back to the repairer app after checkout; without this it
-    // falls back to http://localhost:3001.
-    paymentCheckout.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
+
+    // Accepting a job adds the match fee to the repairer's monthly invoice, so
+    // the accept Lambda (registered above) needs the Stripe key.
+    stripeSecret.grantRead(jobsAccept.function);
+    jobsAccept.function.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
 
     // Repairer subscription — Checkout (subscription mode) that captures the
     // card and starts the £60/month subscription.
@@ -319,7 +301,6 @@ export class ApiStack extends cdk.Stack {
         eventPattern: {
           detailType: [
             'checkout.session.completed',
-            'checkout.session.expired',
             'customer.subscription.created',
             'customer.subscription.updated',
             'customer.subscription.deleted',
@@ -330,31 +311,6 @@ export class ApiStack extends cdk.Stack {
       // The referenced bus must exist before the rule attaches to it.
       stripeRule.node.addDependency(stripeBus);
     }
-
-    // ===== Scheduled sweep: release accepted-but-unpaid jobs =====
-    // Stripe's checkout.session.expired webhook only fires for repairers who
-    // actually started checkout; this catches those who never did, whose jobs
-    // would otherwise stay ACCEPTED and unpaid forever.
-    const releaseUnpaid = new AppLambda(this, 'JobsReleaseUnpaid', {
-      entry: path.join(handlersPath, 'jobs/release-unpaid.ts'),
-      environment: sharedEnv,
-      description: 'Scheduled: return accepted-but-unpaid jobs to the Xchange',
-      timeout: cdk.Duration.minutes(2),
-    });
-    for (const table of allTables) {
-      table.grantReadWriteData(releaseUnpaid.function);
-    }
-    paymentGraceParam.grantRead(releaseUnpaid.function);
-
-    new events.Rule(this, 'ReleaseUnpaidSchedule', {
-      description: 'Sweep accepted-but-unpaid jobs back to OPEN',
-      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
-      targets: [new eventsTargets.LambdaFunction(releaseUnpaid.function)],
-    });
-
-    new cdk.CfnOutput(this, 'ReleaseUnpaidFunctionName', {
-      value: releaseUnpaid.function.functionName,
-    });
 
     new cdk.CfnOutput(this, 'ApiUrl', { value: this.api.apiEndpoint });
   }
