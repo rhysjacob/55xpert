@@ -45,6 +45,7 @@ new ApiStack(app, `${prefix}-Api`, {
   usersTable: databaseStack.usersTable,
   paymentsTable: databaseStack.paymentsTable,
   correctionsTable: databaseStack.correctionsTable,
+  warrantyCompaniesTable: databaseStack.warrantyCompaniesTable,
   imagesBucket: storageStack.imagesBucket,
 });
 
