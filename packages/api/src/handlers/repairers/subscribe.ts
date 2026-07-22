@@ -19,7 +19,8 @@ function firstOfNextMonthUnix(): number {
 /**
  * Start (or resume) a repairer's monthly subscription. Returns a Stripe Checkout
  * URL (subscription mode) that captures the card and creates the subscription:
- * £60/month, billed on the 1st, with the partial first month pro-rated (~£2/day).
+ * £60/month billed upfront on the 1st; the partial first month is free (they
+ * start now and the first charge lands on the 1st of next month).
  * The card-on-file + active subscription then gate job acceptance.
  */
 async function subscribeHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
@@ -53,9 +54,10 @@ async function subscribeHandler(event: APIGatewayProxyEventV2): Promise<APIGatew
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
-      // Bill on the 1st; Stripe pro-rates the stub period to the anchor.
+      // Bill £60 upfront on the 1st; the partial first month is free —
+      // anchor to the 1st with no proration for the stub period.
       billing_cycle_anchor: firstOfNextMonthUnix(),
-      proration_behavior: 'create_prorations',
+      proration_behavior: 'none',
       metadata: { userId: user.userId },
     },
     metadata: { userId: user.userId, type: 'subscription' },
