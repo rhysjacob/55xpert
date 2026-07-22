@@ -272,23 +272,50 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminWarrantyCompanyUpdate', 'admin/warranty-companies.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}');
 
     // ===== Payments =====
-    // Stripe secret (JSON: { secretKey, webhookSecret }) lives in Secrets
-    // Manager, created out-of-band. Only the two payment Lambdas can read it;
-    // the value is fetched at runtime by name (STRIPE_SECRET_NAME).
+    // Stripe secret (JSON: { secretKey }) lives in Secrets Manager, created
+    // out-of-band. Only the checkout Lambda reads it; fetched at runtime by name.
     const stripeSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
       'StripeApiKey',
       `corexpert/${config.stage}/stripe`,
     );
     const paymentCheckout = addRoute('PaymentCreateCheckout', 'payments/create-checkout.ts', apigw.HttpMethod.POST, '/api/v1/payments/create-checkout');
-    const paymentWebhook = addRoute('PaymentWebhook', 'payments/webhook.ts', apigw.HttpMethod.POST, '/api/v1/payments/webhook', { auth: false });
-    for (const fn of [paymentCheckout.function, paymentWebhook.function]) {
-      stripeSecret.grantRead(fn);
-      fn.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
-    }
+    stripeSecret.grantRead(paymentCheckout.function);
+    paymentCheckout.function.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
     // Stripe redirects back to the repairer app after checkout; without this it
     // falls back to http://localhost:3001.
     paymentCheckout.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
+
+    // Inbound Stripe events arrive via Amazon EventBridge (the Stripe partner
+    // event source), not an HTTP webhook — no public endpoint, no signing
+    // secret, and EventBridge gives retries/DLQ + fan-out. Wired only once the
+    // partner source name is configured (created in the Stripe dashboard).
+    if (config.stripeEventSourceName) {
+      const stripeEvents = new AppLambda(this, 'StripeEventProcessor', {
+        entry: path.join(handlersPath, 'payments/webhook.ts'),
+        environment: sharedEnv,
+        description: 'Process Stripe events delivered via EventBridge',
+      });
+      for (const table of allTables) {
+        table.grantReadWriteData(stripeEvents.function);
+      }
+
+      // Naming an event bus after the partner source associates the two.
+      const stripeBus = new events.CfnEventBus(this, 'StripeEventBus', {
+        name: config.stripeEventSourceName,
+        eventSourceName: config.stripeEventSourceName,
+      });
+      const stripeRule = new events.Rule(this, 'StripeEventRule', {
+        eventBus: events.EventBus.fromEventBusName(this, 'StripeBusRef', config.stripeEventSourceName),
+        description: 'Route Stripe checkout events to the processor',
+        eventPattern: {
+          detailType: ['checkout.session.completed', 'checkout.session.expired'],
+        },
+        targets: [new eventsTargets.LambdaFunction(stripeEvents.function)],
+      });
+      // The referenced bus must exist before the rule attaches to it.
+      stripeRule.node.addDependency(stripeBus);
+    }
 
     // ===== Scheduled sweep: release accepted-but-unpaid jobs =====
     // Stripe's checkout.session.expired webhook only fires for repairers who

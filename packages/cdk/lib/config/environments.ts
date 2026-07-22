@@ -21,6 +21,13 @@ export interface EnvironmentConfig {
    * redirects return here (else they fall back to http://localhost:3001).
    */
   frontendUrl: string;
+  /**
+   * Stripe EventBridge partner event source name (e.g.
+   * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
+   * Empty until configured; when set, the CDK associates it with an event bus
+   * and routes Stripe events to the webhook processor Lambda.
+   */
+  stripeEventSourceName: string;
 }
 
 export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
@@ -39,6 +46,9 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     paymentGraceMinutes: 30,
     // Repairer app CloudFront distribution (Corexpert-dev-Frontend output).
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
+    // Stripe (test-mode) EventBridge partner source — associated with an event
+    // bus by the CDK; routes checkout events to the processor Lambda.
+    stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
   },
   prod: {
     stage: 'prod',
@@ -53,5 +63,6 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     paymentGraceMinutes: 30,
     // TODO: set to the production repairer domain once it exists.
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
+    stripeEventSourceName: '',
   },
 };

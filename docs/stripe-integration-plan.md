@@ -55,9 +55,13 @@ exists (unused), and `Payment` carries `stripeCheckoutSessionId` /
 2. **Stripe Customer per repairer** — create a Customer at sign-up and store
    `stripeCustomerId` on the profile. This is the anchor for subscription, saved
    card, invoicing, card-update, and invoice history. Nothing works without it.
-3. **Webhook** — the endpoint exists (`POST /api/v1/payments/webhook`, no JWT,
-   signature-verified). It needs the signing secret, registration in the Stripe
-   dashboard, and to handle the events each phase adds.
+3. **Events via EventBridge** — inbound Stripe events arrive on the **Amazon
+   EventBridge partner event source**, not an HTTP webhook. No public endpoint,
+   no signing secret to manage, and EventBridge gives retries/DLQ + fan-out
+   (which the billing phases will want). Set up the EventBridge destination in
+   the Stripe dashboard, then the CDK associates the partner source with an
+   event bus and routes events to the processor Lambda. Each phase adds the
+   event types it needs to the rule.
 4. **`FRONTEND_URL`** — reinstate the redirect config (reverted earlier) so
    Checkout/hosted pages return to the repairer app, not localhost.
 
@@ -77,7 +81,7 @@ exists (unused), and `Payment` carries `stripeCheckoutSessionId` /
   PDF. Little custom UI.
 - **Card update (TRX-66)**: a Stripe **Billing Portal** session — Stripe hosts
   the whole card-management page; we just redirect.
-- **State**: webhook is the source of truth — `checkout.session.completed`,
+- **State**: the EventBridge event stream is the source of truth — `checkout.session.completed`,
   `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`,
   `setup_intent.succeeded`. Update our `payments`/subscription records from
   these, never from the client.
@@ -102,17 +106,17 @@ exists (unused), and `Payment` carries `stripeCheckoutSessionId` /
 
 - Test cards: `4242 4242 4242 4242` (success), `4000 0000 0000 9995`
   (declined), 3DS test cards for SCA.
-- **Local**: Stripe CLI `stripe listen --forward-to .../payments/webhook` to
-  replay events against a locally-run handler.
-- **Deployed dev**: register the API Gateway webhook URL in the sandbox
-  dashboard; drive a real Checkout in test mode; assert our records update.
-- Verify signature rejection (bad `stripe-signature` → 400).
+- **Events**: create the EventBridge destination in the sandbox dashboard
+  (region eu-west-2), drive a real Checkout in test mode, and assert the
+  processor Lambda fired and our records updated. The dashboard's "send test
+  event" puts an event straight on the partner bus.
+- Confirm delivery robustness via the EventBridge rule's DLQ/retry.
 
 ## 7. Handling the sandbox keys (how to get them to me safely)
 
 Don't paste secret keys into chat or commit them. Preferred: you create the
 secret and I wire the code to read it —
-`aws secretsmanager create-secret --name corexpert/dev/stripe --secret-string '{"secretKey":"sk_test_…","webhookSecret":"whsec_…"}'`
+`aws secretsmanager create-secret --name corexpert/dev/stripe --secret-string '{"secretKey":"sk_test_…"}'` (no webhook signing secret needed — events come via EventBridge)
 — or I create an empty secret in the CDK and you fill the value in the console.
 The publishable key (`pk_test_…`) is not sensitive and can go in the frontend env.
 
