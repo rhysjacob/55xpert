@@ -1,6 +1,5 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { randomUUID } from 'node:crypto';
-import Stripe from 'stripe';
 import { z } from 'zod';
 import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
@@ -10,11 +9,10 @@ import { logger } from '../../lib/logger';
 import { JobsRepository, PaymentsRepository } from '@corexpert/db';
 import { NotFoundError, ForbiddenError, ValidationError } from '@corexpert/core';
 import type { Payment } from '@corexpert/core';
+import { getStripe } from '../../lib/stripe';
 
-const STRIPE_SECRET_KEY = process.env['STRIPE_SECRET_KEY'] ?? '';
 const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:3001';
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2025-02-24.acacia' });
 const jobs = new JobsRepository();
 const payments = new PaymentsRepository();
 
@@ -42,6 +40,7 @@ async function createCheckoutHandler(event: APIGatewayProxyEventV2): Promise<API
   const paymentId = randomUUID();
 
   // Create Stripe Checkout Session
+  const stripe = await getStripe();
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
