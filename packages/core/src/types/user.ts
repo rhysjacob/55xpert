@@ -6,6 +6,24 @@ export const UserRole = {
 } as const;
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
+/** Stripe subscription statuses (mirrors Stripe's `Subscription.status`). */
+export const SubscriptionStatus = {
+  INCOMPLETE: 'incomplete',
+  INCOMPLETE_EXPIRED: 'incomplete_expired',
+  TRIALING: 'trialing',
+  ACTIVE: 'active',
+  PAST_DUE: 'past_due',
+  CANCELED: 'canceled',
+  UNPAID: 'unpaid',
+  PAUSED: 'paused',
+} as const;
+export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
+
+/** Whether a subscription status lets a repairer accept jobs (in good standing). */
+export function isSubscriptionActive(status: SubscriptionStatus | undefined): boolean {
+  return status === 'active' || status === 'trialing';
+}
+
 export interface User {
   userId: string;
   email: string;
@@ -30,6 +48,10 @@ export interface RepairerProfile {
   lng?: number;
   isVerified: boolean;
   stripeCustomerId?: string;
+  /** Stripe subscription id once the repairer subscribes. */
+  stripeSubscriptionId?: string;
+  /** Current subscription status, kept in sync from Stripe subscription events. */
+  subscriptionStatus?: SubscriptionStatus;
 }
 
 export interface RepairerPreferences {

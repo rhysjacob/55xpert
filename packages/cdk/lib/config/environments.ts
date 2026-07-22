@@ -28,6 +28,8 @@ export interface EnvironmentConfig {
    * and routes Stripe events to the webhook processor Lambda.
    */
   stripeEventSourceName: string;
+  /** Stripe Price id for the repairer monthly subscription (£60/mo). */
+  stripePriceId: string;
 }
 
 export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
@@ -49,6 +51,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
+    stripePriceId: 'price_1TvwJdPEDJHRNcKwY3zH4i7D',
   },
   prod: {
     stage: 'prod',
@@ -64,5 +67,6 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     // TODO: set to the production repairer domain once it exists.
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
     stripeEventSourceName: '',
+    stripePriceId: '',
   },
 };
