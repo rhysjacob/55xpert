@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as path from 'path';
 import type { Construct } from 'constructs';
@@ -37,6 +38,16 @@ export class AuthStack extends cdk.Stack {
       description: 'Cognito post-confirmation trigger',
     });
     props.usersTable.grantReadWriteData(postConfirmation.function);
+
+    // The trigger creates a Stripe Customer for repairers, so it needs the
+    // Stripe key (JSON { secretKey } in Secrets Manager, created out-of-band).
+    const stripeSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'StripeApiKey',
+      `corexpert/${config.stage}/stripe`,
+    );
+    stripeSecret.grantRead(postConfirmation.function);
+    postConfirmation.function.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
 
     this.userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: `corexpert-${config.stage}-users`,
