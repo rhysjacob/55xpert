@@ -286,6 +286,14 @@ export class ApiStack extends cdk.Stack {
     // falls back to http://localhost:3001.
     paymentCheckout.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
 
+    // Repairer subscription — Checkout (subscription mode) that captures the
+    // card and starts the £60/month subscription.
+    const subscribe = addRoute('RepairerSubscribe', 'repairers/subscribe.ts', apigw.HttpMethod.POST, '/api/v1/repairer/subscription');
+    stripeSecret.grantRead(subscribe.function);
+    subscribe.function.addEnvironment('STRIPE_SECRET_NAME', stripeSecret.secretName);
+    subscribe.function.addEnvironment('STRIPE_PRICE_ID', config.stripePriceId);
+    subscribe.function.addEnvironment('FRONTEND_URL', config.frontendUrl);
+
     // Inbound Stripe events arrive via Amazon EventBridge (the Stripe partner
     // event source), not an HTTP webhook — no public endpoint, no signing
     // secret, and EventBridge gives retries/DLQ + fan-out. Wired only once the
@@ -307,9 +315,15 @@ export class ApiStack extends cdk.Stack {
       });
       const stripeRule = new events.Rule(this, 'StripeEventRule', {
         eventBus: events.EventBus.fromEventBusName(this, 'StripeBusRef', config.stripeEventSourceName),
-        description: 'Route Stripe checkout events to the processor',
+        description: 'Route Stripe checkout + subscription events to the processor',
         eventPattern: {
-          detailType: ['checkout.session.completed', 'checkout.session.expired'],
+          detailType: [
+            'checkout.session.completed',
+            'checkout.session.expired',
+            'customer.subscription.created',
+            'customer.subscription.updated',
+            'customer.subscription.deleted',
+          ],
         },
         targets: [new eventsTargets.LambdaFunction(stripeEvents.function)],
       });

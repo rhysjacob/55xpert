@@ -6,7 +6,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { docClient } from '../client';
 import { TABLES, GSI } from '../tables';
-import type { User, UserRole } from '@corexpert/core';
+import type { User, UserRole, RepairerProfile } from '@corexpert/core';
 
 export class UsersRepository {
   async create(user: User): Promise<void> {
@@ -63,6 +63,25 @@ export class UsersRepository {
       items: (result.Items ?? []) as User[],
       lastKey: result.LastEvaluatedKey,
     };
+  }
+
+  /**
+   * Set a repairer's subscription id + status (read-modify-write on the nested
+   * profile). No-op if the user has no repairer profile.
+   */
+  async setRepairerSubscription(
+    userId: string,
+    subscriptionId: string,
+    status: NonNullable<RepairerProfile['subscriptionStatus']>,
+  ): Promise<void> {
+    const user = await this.getById(userId);
+    if (!user?.repairer) return;
+    const repairer: RepairerProfile = {
+      ...user.repairer,
+      stripeSubscriptionId: subscriptionId,
+      subscriptionStatus: status,
+    };
+    await this.update(userId, { repairer });
   }
 
   async update(userId: string, updates: Partial<User>): Promise<void> {
