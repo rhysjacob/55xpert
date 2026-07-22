@@ -22,25 +22,26 @@ business, and Stripe underpins all of it:
 The marketing site already states the model: **£2/day subscription** + a **match
 fee** that replaces commissions.
 
-## 2. The decision that gates the design (Jon — commercial terms)
+## 2. Commercial model — DECIDED (Jon): monthly billing
 
-The current code charges the match fee **per job, immediately**, via a one-off
-Stripe Checkout session. But **TRX-33 says job fees are invoiced monthly**. Those
-are two different models:
+**Option B — subscription + accrue-and-invoice-monthly.** Each match fee becomes
+a Stripe **invoice item** on the repairer's Customer; a monthly invoice
+consolidates the subscription + accrued job fees and charges the saved card
+once. Stripe generates the invoice/PDF (covers TRX-65 for free).
 
-- **A — Charge per job now** (what's built): repairer pays the match fee at
-  acceptance via Checkout; simplest; money up front.
-- **B — Accrue + invoice monthly** (what TRX-33 implies): each match fee becomes
-  a Stripe **invoice item** on the repairer's customer; a monthly invoice
-  consolidates subscription + accrued job fees off the saved card.
-
-TRX-33 is owned by Jon and flagged "confirm commercial terms." **This choice
-must be settled before building the fee mechanism** — it changes whether we use
-Checkout-per-job or invoice items. My recommendation: **B** (subscription +
-monthly consolidated invoice) — it matches the stated model, means one card
-charge a month instead of many, and Stripe does the invoicing/PDFs for us
-(covers TRX-65 for free). Keep the built per-job Checkout only as an interim to
-prove the plumbing in sandbox.
+### Consequence: this supersedes the per-job payment flow built earlier
+The interim per-job Checkout flow — and the machinery around it — was for the
+rejected Option A and must be **removed/reworked**:
+- **`create-checkout` per job** → replaced by a Stripe **invoice item** on the
+  Customer at acceptance (no per-job Checkout session).
+- **`PAYMENT_REQUIRED` gate on job details** → acceptance grants access
+  immediately; the fee accrues to the monthly invoice. (Confirm: acceptance
+  instead requires an **active subscription / card on file**.)
+- **Unpaid-acceptance sweeper** (releases jobs not paid within a grace window)
+  → obsolete; non-payment is handled at the **monthly invoice** level (failed
+  invoice → suspend, TRX-35), not per job.
+- EventBridge rule moves from `checkout.session.*` to `invoice.paid`,
+  `invoice.payment_failed`, `customer.subscription.*`.
 
 ## 3. Foundation (needed for every option)
 
