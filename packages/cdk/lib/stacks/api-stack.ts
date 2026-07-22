@@ -310,6 +310,7 @@ export class ApiStack extends cdk.Stack {
             'customer.subscription.created',
             'customer.subscription.updated',
             'customer.subscription.deleted',
+            'invoice.payment_failed',
           ],
         },
         targets: [new eventsTargets.LambdaFunction(stripeEvents.function)],
