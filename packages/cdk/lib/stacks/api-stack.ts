@@ -27,6 +27,7 @@ export interface ApiStackProps extends cdk.StackProps {
   warrantyCompaniesTable: dynamodb.ITable;
   organisationsTable: dynamodb.ITable;
   networkLinksTable: dynamodb.ITable;
+  ingestionsTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -67,7 +68,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable];
 
     // AI-model debug configuration (SSM). The toggle gates whether triage may use
     // a UI-selected model instead of the deploy-time default. NOTE: a deploy
@@ -94,6 +95,7 @@ export class ApiStack extends cdk.Stack {
       WARRANTY_COMPANIES_TABLE: props.warrantyCompaniesTable.tableName,
       ORGANISATIONS_TABLE: props.organisationsTable.tableName,
       NETWORK_LINKS_TABLE: props.networkLinksTable.tableName,
+      INGESTIONS_TABLE: props.ingestionsTable.tableName,
       IMAGE_BUCKET: props.imagesBucket.bucketName,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
@@ -222,6 +224,23 @@ export class ApiStack extends cdk.Stack {
     const jobsAccept = addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept');
     addRoute('JobsDetails', 'jobs/details.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}/details');
 
+    // Scheduled sweeper: expire OPEN jobs past their expiry — 48h for ingested
+    // warranty-company jobs, 7 days for consumer jobs — and hand ingested ones
+    // back to the company (TRX-10). Hourly; not an HTTP route.
+    const expirySweep = new AppLambda(this, 'JobExpirySweep', {
+      entry: path.join(handlersPath, 'jobs/expiry-sweep.ts'),
+      environment: sharedEnv,
+      description: 'Scheduled sweep: expire lapsed OPEN jobs (TRX-10)',
+      timeout: cdk.Duration.seconds(120),
+    });
+    for (const table of allTables) {
+      table.grantReadWriteData(expirySweep.function);
+    }
+    new events.Rule(this, 'JobExpirySweepSchedule', {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      targets: [new eventsTargets.LambdaFunction(expirySweep.function)],
+    });
+
     // ===== Repairer =====
     addRoute('RepairerProfile', 'repairers/profile.ts', apigw.HttpMethod.GET, '/api/v1/repairer/profile');
     addRoute('RepairerUpdateProfile', 'repairers/update-profile.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/profile');
@@ -271,6 +290,17 @@ export class ApiStack extends cdk.Stack {
     // Admin: a company's repairer network — add/toggle links + list (TRX-78).
     addRoute('AdminNetworkList', 'admin/network-links.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies/{companyId}/network');
     addRoute('AdminNetworkUpsert', 'admin/network-links.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}/network');
+    // Admin: issue/rotate a company's ingestion API key (TRX-14/79).
+    addRoute('AdminIngestKey', 'admin/warranty-company-key.ts', apigw.HttpMethod.POST, '/api/v1/admin/warranty-companies/{companyId}/ingest-key');
+
+    // ===== Warranty-company job ingestion (system-to-system, API-key auth) =====
+    // No Cognito JWT — authenticated in-handler by the x-api-key header, so the
+    // gateway authorizer is off (auth:false). Mapping a real company's payload
+    // onto this canonical contract is TRX-15 (external, blocked).
+    const ingestSubmit = addRoute('IngestSubmit', 'ingest/submit.ts', apigw.HttpMethod.POST, '/api/v1/ingest/jobs', { auth: false });
+    ingestSubmit.function.addEnvironment('TRIAGE_WORKER_FUNCTION', triageWorker.function.functionName);
+    triageWorker.function.grantInvoke(ingestSubmit.function);
+    addRoute('IngestStatus', 'ingest/status.ts', apigw.HttpMethod.GET, '/api/v1/ingest/jobs', { auth: false });
 
     // ===== Payments (Stripe) =====
     // Stripe secret (JSON: { secretKey }) lives in Secrets Manager, created

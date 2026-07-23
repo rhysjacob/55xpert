@@ -9,6 +9,7 @@ export const TABLES = {
   WARRANTY_COMPANIES: `corexpert-${STAGE}-warranty-companies`,
   ORGANISATIONS: `corexpert-${STAGE}-organisations`,
   NETWORK_LINKS: `corexpert-${STAGE}-network-links`,
+  INGESTIONS: `corexpert-${STAGE}-ingestions`,
 } as const;
 
 export const GSI = {
@@ -19,6 +20,9 @@ export const GSI = {
   // Jobs table
   JOBS_STATUS_PUBLISHED: 'status-publishedAt-index',
   JOBS_CASE: 'caseId-index',
+
+  // Warranty-companies table — resolve an ingestion request to its tenant.
+  WARRANTY_COMPANIES_INGEST_KEY: 'ingestApiKeyHash-index',
 
   // Users table
   USERS_EMAIL: 'email-index',

@@ -41,6 +41,11 @@ export interface Case {
    * the published job so matching can scope to that company's network (TRX-78).
    */
   warrantyCompanyId?: string;
+  /** How the case originated. Absent/CONSUMER for consumer uploads; INGESTED
+   *  for warranty-company job push (TRX-14/79) — drives a shorter job expiry. */
+  origin?: 'CONSUMER' | 'INGESTED';
+  /** The warranty company's own job reference, for ingested cases (dedupe). */
+  externalRef?: string;
   postcode?: string;
   incidentDate?: string;
   incidentNotes?: string;

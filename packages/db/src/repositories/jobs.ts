@@ -143,6 +143,30 @@ export class JobsRepository {
     );
   }
 
+  /**
+   * Expire an OPEN job (TRX-10 sweeper). Conditional on it still being OPEN so
+   * a job accepted between the sweep read and this write is left alone. Returns
+   * true if it was expired, false if it was no longer OPEN.
+   */
+  async expireJob(jobId: string): Promise<boolean> {
+    try {
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLES.JOBS,
+          Key: { jobId },
+          UpdateExpression: 'SET #status = :expired, updatedAt = :now',
+          ConditionExpression: '#status = :open',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: { ':expired': 'EXPIRED', ':open': 'OPEN', ':now': new Date().toISOString() },
+        }),
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) return false;
+      throw error;
+    }
+  }
+
   async acceptJob(jobId: string, acceptance: JobAcceptance): Promise<boolean> {
     try {
       await docClient.send(

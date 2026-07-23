@@ -26,6 +26,12 @@ export interface WarrantyCompany {
   status: WarrantyCompanyStatus;
   /** This company's eligibility rules + pricing matrix. */
   scheme: WarrantyCompanyScheme;
+  /**
+   * SHA-256 of the company's job-ingestion API key (TRX-14/79). The plaintext
+   * key is shown once at issue time and never stored. A GSI on this hash
+   * resolves an inbound request to its tenant. Absent until a key is issued.
+   */
+  ingestApiKeyHash?: string;
   createdAt: string;
   updatedAt: string;
 }

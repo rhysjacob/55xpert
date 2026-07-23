@@ -1,14 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import { CasesRepository, JobsRepository } from '@corexpert/db';
+import { CasesRepository, JobsRepository, WarrantyCompaniesRepository, IngestionsRepository } from '@corexpert/db';
 import { ValidationError } from '@corexpert/core';
 import type { Case, Job, CaseStatus } from '@corexpert/core';
 import { logger } from './logger';
+import { notifyWarrantyCompany } from './warranty-notify';
 
 const INTRODUCTION_FEE = Number(process.env['INTRODUCTION_FEE'] ?? '2500');
 const JOB_EXPIRY_DAYS = 7;
+// Ingested (warranty-company) jobs expire faster — 48h — so unmatched work is
+// handed back to the company promptly (TRX-10).
+const INGESTED_JOB_EXPIRY_HOURS = 48;
 
 const cases = new CasesRepository();
 const jobs = new JobsRepository();
+const warrantyCompanies = new WarrantyCompaniesRepository();
+const ingestions = new IngestionsRepository();
 
 /**
  * Publish a case to The Repair Xchange: creates an OPEN job that repairers
@@ -29,7 +35,10 @@ export async function publishJobForCase(caseData: Case): Promise<Job> {
   }
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + JOB_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  const expiryMs = caseData.origin === 'INGESTED'
+    ? INGESTED_JOB_EXPIRY_HOURS * 60 * 60 * 1000
+    : JOB_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  const expiresAt = new Date(now.getTime() + expiryMs);
 
   // Extract unique repair methods from triage panels
   const repairMethods = [...new Set(
@@ -63,6 +72,20 @@ export async function publishJobForCase(caseData: Case): Promise<Job> {
 
   await jobs.create(job);
   await cases.updateStatus(caseData.caseId, 'PUBLISHED' as CaseStatus);
+
+  // Ingested jobs: mark the ingestion PUBLISHED and tell the company (TRX-36).
+  if (caseData.origin === 'INGESTED' && caseData.warrantyCompanyId && caseData.externalRef) {
+    await ingestions.setStatus(caseData.warrantyCompanyId, caseData.externalRef, 'PUBLISHED', { caseId: caseData.caseId });
+    const company = await warrantyCompanies.getById(caseData.warrantyCompanyId);
+    if (company) {
+      await notifyWarrantyCompany(company, {
+        event: 'job.published',
+        externalRef: caseData.externalRef,
+        caseId: caseData.caseId,
+        jobId: job.jobId,
+      });
+    }
+  }
 
   logger.info('Job published', { jobId: job.jobId, caseId: caseData.caseId });
 
