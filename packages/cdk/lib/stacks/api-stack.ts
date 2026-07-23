@@ -25,6 +25,8 @@ export interface ApiStackProps extends cdk.StackProps {
   paymentsTable: dynamodb.ITable;
   correctionsTable: dynamodb.ITable;
   warrantyCompaniesTable: dynamodb.ITable;
+  organisationsTable: dynamodb.ITable;
+  networkLinksTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -65,7 +67,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable];
 
     // AI-model debug configuration (SSM). The toggle gates whether triage may use
     // a UI-selected model instead of the deploy-time default. NOTE: a deploy
@@ -90,6 +92,8 @@ export class ApiStack extends cdk.Stack {
       PAYMENTS_TABLE: props.paymentsTable.tableName,
       CORRECTIONS_TABLE: props.correctionsTable.tableName,
       WARRANTY_COMPANIES_TABLE: props.warrantyCompaniesTable.tableName,
+      ORGANISATIONS_TABLE: props.organisationsTable.tableName,
+      NETWORK_LINKS_TABLE: props.networkLinksTable.tableName,
       IMAGE_BUCKET: props.imagesBucket.bucketName,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
@@ -224,6 +228,9 @@ export class ApiStack extends cdk.Stack {
     addRoute('RepairerPreferencesGet', 'repairers/preferences.ts', apigw.HttpMethod.GET, '/api/v1/repairer/preferences');
     addRoute('RepairerPreferencesUpdate', 'repairers/preferences.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/preferences');
     addRoute('RepairerMyJobs', 'repairers/my-jobs.ts', apigw.HttpMethod.GET, '/api/v1/repairer/jobs');
+    // Repairer self-manages their org's capability + coverage (TRX-18).
+    addRoute('RepairerOrgGet', 'repairers/organisation.ts', apigw.HttpMethod.GET, '/api/v1/repairer/organisation');
+    addRoute('RepairerOrgUpdate', 'repairers/organisation.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/organisation');
 
     // ===== Xpert Review =====
     addRoute('XpertCasesList', 'xpert/list-cases.ts', apigw.HttpMethod.GET, '/api/v1/xpert/cases');
@@ -236,6 +243,13 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminRepairers', 'admin/repairers.ts', apigw.HttpMethod.GET, '/api/v1/admin/repairers');
     addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}');
     addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard');
+
+    // Admin: repairer organisations (TRX-37/49) + manual job push override (TRX-20).
+    addRoute('AdminOrgsList', 'admin/organisations.ts', apigw.HttpMethod.GET, '/api/v1/admin/organisations');
+    addRoute('AdminOrgsCreate', 'admin/organisations.ts', apigw.HttpMethod.POST, '/api/v1/admin/organisations');
+    addRoute('AdminOrgGet', 'admin/organisations.ts', apigw.HttpMethod.GET, '/api/v1/admin/organisations/{organisationId}');
+    addRoute('AdminOrgUpdate', 'admin/organisations.ts', apigw.HttpMethod.PUT, '/api/v1/admin/organisations/{organisationId}');
+    addRoute('AdminPushJob', 'admin/push-job.ts', apigw.HttpMethod.POST, '/api/v1/admin/jobs/{jobId}/push');
 
     // Admin debug: AI model picker (read + set), gated by the SSM toggle.
     const modelConfigGet = addRoute('AdminModelConfigGet', 'admin/model-config.ts', apigw.HttpMethod.GET, '/api/v1/admin/model-config');
@@ -253,6 +267,10 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminWarrantyCompaniesCreate', 'admin/warranty-companies.ts', apigw.HttpMethod.POST, '/api/v1/admin/warranty-companies');
     addRoute('AdminWarrantyCompanyGet', 'admin/warranty-companies.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies/{companyId}');
     addRoute('AdminWarrantyCompanyUpdate', 'admin/warranty-companies.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}');
+
+    // Admin: a company's repairer network — add/toggle links + list (TRX-78).
+    addRoute('AdminNetworkList', 'admin/network-links.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies/{companyId}/network');
+    addRoute('AdminNetworkUpsert', 'admin/network-links.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}/network');
 
     // ===== Payments (Stripe) =====
     // Stripe secret (JSON: { secretKey }) lives in Secrets Manager, created

@@ -3,27 +3,74 @@ import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
 import { getQueryParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
-import { JobsRepository } from '@corexpert/db';
+import { UsersRepository, JobsRepository } from '@corexpert/db';
+import { evaluateMatch, compareByMatch } from '@corexpert/core';
+import type { Job } from '@corexpert/core';
+import { resolveMatchTarget, jobToMatchInput } from '../../lib/matching';
 
+const users = new UsersRepository();
 const jobs = new JobsRepository();
 
+// How many OPEN jobs to scan before matching. At MVP cardinality a single wide
+// window covers the whole open pool; matching then filters it to this repairer.
+const OPEN_SCAN = 200;
+// Recently-taken jobs shown greyed-out (TRX-53) so a repairer sees a job vanish
+// to a faster finger rather than have it silently disappear.
+const TAKEN_WINDOW = 25;
+
+/**
+ * The jobs available to the calling repairer — filtered by the matching engine
+ * (network scope, capability, coverage with nearest-area fallback) and ranked
+ * by proximity (TRX-11/12/13/78). Jobs an admin has pushed to the repairer's
+ * org are always included (TRX-20). Recently-accepted matches are returned
+ * flagged `taken` so the UI can grey them out (TRX-53).
+ */
 async function listHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const auth = getAuthContext(event);
   requireRole(auth, 'REPAIRER');
 
-  const limit = Number(getQueryParam(event, 'limit', '20'));
-  const lastKey = getQueryParam(event, 'cursor');
+  const limit = Math.min(Number(getQueryParam(event, 'limit', '20')), 100);
 
-  const result = await jobs.listByStatus(
-    'OPEN',
-    Math.min(limit, 100),
-    lastKey ? JSON.parse(Buffer.from(lastKey, 'base64url').toString()) : undefined,
-  );
+  const user = await users.getById(auth.userId);
+  const target = user ? await resolveMatchTarget(user) : null;
+  // No usable target (missing profile, or suspended/pending org) → nothing to show.
+  if (!target) return ok({ items: [], cursor: null });
 
-  // Return limited info (pre-acceptance view)
-  const items = result.items.map((job) => ({
+  const [open, taken] = await Promise.all([
+    jobs.listByStatus('OPEN', OPEN_SCAN),
+    jobs.listByStatus('ACCEPTED', TAKEN_WINDOW),
+  ]);
+
+  const pushedToMe = (job: Job): boolean =>
+    !!target.organisationId && (job.pushedOrganisationIds ?? []).includes(target.organisationId);
+
+  const consider = (job: Job, isTaken: boolean) => {
+    const result = evaluateMatch(jobToMatchInput(job), target);
+    const matched = result.matched || pushedToMe(job);
+    if (!matched) return null;
+    return {
+      job,
+      taken: isTaken,
+      // A pushed-but-unmatched job still ranks, treated as an exact hit.
+      exact: result.matched ? result.exact : true,
+      proximity: result.matched ? result.proximity : 1,
+    };
+  };
+
+  const matchedOpen = open.items.map((j) => consider(j, false)).filter((x) => x !== null);
+  const matchedTaken = taken.items.map((j) => consider(j, true)).filter((x) => x !== null);
+
+  // Open jobs first (ranked), then the greyed-out taken ones.
+  matchedOpen.sort((a, b) => compareByMatch(
+    { exact: a.exact, proximity: a.proximity, publishedAt: a.job.publishedAt },
+    { exact: b.exact, proximity: b.proximity, publishedAt: b.job.publishedAt },
+  ));
+
+  const items = [...matchedOpen, ...matchedTaken].slice(0, limit).map(({ job, taken: isTaken, exact }) => ({
     jobId: job.jobId,
     status: job.status,
+    taken: isTaken,
+    matchType: exact ? 'exact' : 'nearby',
     publishedAt: job.publishedAt,
     expiresAt: job.expiresAt,
     introductionFee: job.introductionFee,
@@ -34,12 +81,10 @@ async function listHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
     indicativeCost: job.indicativeCost,
   }));
 
-  return ok({
-    items,
-    cursor: result.lastKey
-      ? Buffer.from(JSON.stringify(result.lastKey)).toString('base64url')
-      : null,
-  });
+  // Matching filters the whole open window in one pass, so there is no server
+  // cursor to continue at current scale (documented; revisit with a
+  // by-region/by-org GSI if the open pool grows large).
+  return ok({ items, cursor: null });
 }
 
 export const handler = withErrorHandler(listHandler);

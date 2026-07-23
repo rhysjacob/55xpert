@@ -32,6 +32,13 @@ export interface User {
   phone?: string;
   role: UserRole;
   isActive: boolean;
+  /**
+   * The repairer organisation this user belongs to (TRX-52). Top-level (not on
+   * the nested profile) so it can back the organisationId GSI for member
+   * listing and enable/disable cascades. Absent for a legacy standalone
+   * repairer, matched from their own profile/preferences.
+   */
+  organisationId?: string;
   repairer?: RepairerProfile;
   preferences?: RepairerPreferences;
   createdAt: string;

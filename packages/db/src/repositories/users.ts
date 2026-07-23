@@ -65,6 +65,19 @@ export class UsersRepository {
     };
   }
 
+  /** All users belonging to a repairer organisation (members). */
+  async listByOrganisation(organisationId: string): Promise<User[]> {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: TABLES.USERS,
+        IndexName: GSI.USERS_ORG,
+        KeyConditionExpression: 'organisationId = :o',
+        ExpressionAttributeValues: { ':o': organisationId },
+      }),
+    );
+    return (result.Items ?? []) as User[];
+  }
+
   /**
    * Set a repairer's subscription id + status (read-modify-write on the nested
    * profile). No-op if the user has no repairer profile.

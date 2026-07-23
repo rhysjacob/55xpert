@@ -11,9 +11,13 @@ interface Job {
   indicativeCost: number;
   introductionFee: number;
   repairMethods: string[];
-  location: { area: string };
+  location: { postcode?: string };
   publishedAt: string;
   expiresAt: string;
+  /** True when a faster repairer already accepted — shown greyed out (TRX-53). */
+  taken?: boolean;
+  /** 'exact' = in your coverage; 'nearby' = nearest-area fallback (TRX-12/13). */
+  matchType?: 'exact' | 'nearby';
 }
 
 function formatPence(pence: number): string {
@@ -50,9 +54,9 @@ export function AvailableJobsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {data.items.map((job) => (
-            <Link key={job.jobId} to={`/jobs/${job.jobId}`}>
-              <Card className="hover:shadow-md transition-shadow">
+          {data.items.map((job) => {
+            const card = (
+              <Card className={job.taken ? 'opacity-60' : 'hover:shadow-md transition-shadow'}>
                 <CardBody>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -63,6 +67,15 @@ export function AvailableJobsPage() {
                         <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
                           {job.vehicleSummary.vehicleSize}
                         </span>
+                        {job.taken ? (
+                          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-medium">
+                            Taken
+                          </span>
+                        ) : job.matchType === 'nearby' ? (
+                          <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded">
+                            Nearby
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{job.damageSummary}</p>
                       <div className="flex flex-wrap gap-1.5">
@@ -85,13 +98,19 @@ export function AvailableJobsPage() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-                    <span>{job.location.area}</span>
+                    <span>{job.location.postcode}</span>
                     <span>Posted {timeAgo(job.publishedAt)}</span>
                   </div>
                 </CardBody>
               </Card>
-            </Link>
-          ))}
+            );
+            // A taken job is greyed out and not clickable — a faster finger won it.
+            return job.taken ? (
+              <div key={job.jobId} className="cursor-default">{card}</div>
+            ) : (
+              <Link key={job.jobId} to={`/jobs/${job.jobId}`}>{card}</Link>
+            );
+          })}
         </div>
       )}
     </Layout>

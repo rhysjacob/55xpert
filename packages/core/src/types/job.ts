@@ -47,4 +47,15 @@ export interface Job {
   acceptance?: JobAcceptance;
   notificationsSent: number;
   createdAt: string;
+  /**
+   * The warranty company the job originates from (inherited from the case).
+   * When set, matching is scoped to that company's enabled network (TRX-78);
+   * when absent the job is untenanted and reaches all matchable repairers.
+   */
+  warrantyCompanyId?: string;
+  /**
+   * Organisations an admin has manually pushed this job to (TRX-20). These see
+   * the job regardless of automatic matching — an override, not a replacement.
+   */
+  pushedOrganisationIds?: string[];
 }
