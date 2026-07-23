@@ -11,6 +11,7 @@ import type { EnvironmentConfig } from '../config/environments';
 export interface AuthStackProps extends cdk.StackProps {
   config: EnvironmentConfig;
   usersTable: dynamodb.ITable;
+  organisationsTable: dynamodb.ITable;
 }
 
 export class AuthStack extends cdk.Stack {
@@ -34,10 +35,12 @@ export class AuthStack extends cdk.Stack {
       environment: {
         STAGE: config.stage,
         USERS_TABLE: props.usersTable.tableName,
+        ORGANISATIONS_TABLE: props.organisationsTable.tableName,
       },
       description: 'Cognito post-confirmation trigger',
     });
     props.usersTable.grantReadWriteData(postConfirmation.function);
+    props.organisationsTable.grantReadWriteData(postConfirmation.function);
 
     // The trigger creates a Stripe Customer for repairers, so it needs the
     // Stripe key (JSON { secretKey } in Secrets Manager, created out-of-band).
@@ -63,15 +66,23 @@ export class AuthStack extends cdk.Stack {
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: removal,
+      // Optional TOTP MFA (authenticator app) — repairers can turn on 2FA
+      // (TRX-69); enrolment runs client-side via the Cognito SDK against this
+      // pool. Optional (not required) so existing accounts aren't locked out.
+      mfa: cognito.Mfa.OPTIONAL,
+      mfaSecondFactor: { otp: true, sms: false },
       standardAttributes: {
         email: { required: true, mutable: true },
         givenName: { required: false, mutable: true },
         familyName: { required: false, mutable: true },
       },
       // Repairer signup captures business name + postcode (used for job matching).
+      // organisation_id is set by the invite flow (TRX-52) so an invited member's
+      // post-confirmation joins the existing org instead of creating a new one.
       customAttributes: {
         business_name: new cognito.StringAttribute({ mutable: true }),
         postcode: new cognito.StringAttribute({ mutable: true }),
+        organisation_id: new cognito.StringAttribute({ mutable: true }),
       },
       lambdaTriggers: {
         postConfirmation: postConfirmation.function,

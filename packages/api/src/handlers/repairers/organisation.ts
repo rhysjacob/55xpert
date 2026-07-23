@@ -33,7 +33,22 @@ async function organisationHandler(event: APIGatewayProxyEventV2): Promise<APIGa
   if (!org) throw new NotFoundError('Organisation', user.organisationId);
 
   if (event.requestContext.http.method === 'GET') {
-    return ok({ organisation: org });
+    // Include members + whether the caller is the primary contact (who may
+    // invite) and whether the org is live (TRX-21 registration status / TRX-52).
+    const members = await users.listByOrganisation(org.organisationId);
+    return ok({
+      organisation: org,
+      members: members.map((m) => ({
+        userId: m.userId,
+        email: m.email,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        isActive: m.isActive,
+        isPrimaryContact: m.userId === org.primaryContactUserId,
+      })),
+      canInvite: org.primaryContactUserId === user.userId,
+      isLive: org.status === 'ACTIVE',
+    });
   }
 
   // PUT — self-serve capability/name edit (not status, not membership).

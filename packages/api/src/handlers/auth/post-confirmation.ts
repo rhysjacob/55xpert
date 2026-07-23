@@ -4,12 +4,15 @@ import {
   DescribeUserPoolClientCommand,
   AdminAddUserToGroupCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { UsersRepository } from '@corexpert/db';
+import { randomUUID } from 'node:crypto';
+import { UsersRepository, OrganisationsRepository } from '@corexpert/db';
 import { logger } from '../../lib/logger';
 import { createStripeCustomer } from '../../lib/stripe';
-import type { User, UserRole, RepairerProfile } from '@corexpert/core';
+import { outwardCode, normalisePostcode } from '@corexpert/core';
+import type { User, UserRole, RepairerProfile, RepairerOrganisation } from '@corexpert/core';
 
 const users = new UsersRepository();
+const orgs = new OrganisationsRepository();
 const cognito = new CognitoIdentityProviderClient({});
 
 /**
@@ -45,11 +48,45 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
   // confirmation, so on failure we still provision the user (a later checkout/
   // subscription step backfills the customer).
   let repairer: RepairerProfile | undefined;
+  let organisationId: string | undefined;
   if (role === 'REPAIRER') {
     const businessName = userAttributes['custom:business_name'] ?? '';
     repairer = { businessName, isVerified: false };
     const postcode = userAttributes['custom:postcode'];
     if (postcode) repairer.postcode = postcode;
+
+    // Resolve the organisation (TRX-37/44/49/52). An invited member carries the
+    // org id (set by the invite flow) and joins it; a self-signup is a new
+    // business owner, so we create a PENDING org awaiting admin approval. Both
+    // are best-effort — an org hiccup must not fail account confirmation.
+    const invitedOrgId = userAttributes['custom:organisation_id'];
+    try {
+      if (invitedOrgId) {
+        organisationId = invitedOrgId;
+      } else {
+        organisationId = randomUUID();
+        const org: RepairerOrganisation = {
+          organisationId,
+          name: businessName || email,
+          status: 'PENDING',
+          capability: {
+            vehicleSizes: [],
+            repairMethods: [],
+            coverageAreas: postcode ? [outwardCode(postcode)] : [],
+            ...(postcode ? { basePostcode: normalisePostcode(postcode) } : {}),
+          },
+          primaryContactUserId: userId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await orgs.create(org);
+        logger.info('Repairer organisation created', { userId, organisationId });
+      }
+    } catch (err) {
+      logger.error('Organisation provisioning failed; user still created', { userId, err: String(err) });
+      organisationId = invitedOrgId ?? undefined;
+    }
+
     try {
       const customerId = await createStripeCustomer({
         email,
@@ -71,6 +108,7 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
     phone: userAttributes['phone_number'],
     role,
     isActive: true,
+    ...(organisationId ? { organisationId } : {}),
     ...(repairer ? { repairer } : {}),
     createdAt: now,
     updatedAt: now,

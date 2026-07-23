@@ -28,6 +28,7 @@ const authStack = new AuthStack(app, `${prefix}-Auth`, {
   env,
   config,
   usersTable: databaseStack.usersTable,
+  organisationsTable: databaseStack.organisationsTable,
 });
 const storageStack = new StorageStack(app, `${prefix}-Storage`, { env, config });
 
