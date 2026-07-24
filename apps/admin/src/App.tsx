@@ -4,6 +4,7 @@ import { AuthProvider } from './hooks/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { SignInPage } from './pages/SignIn';
 import { DashboardPage } from './pages/Dashboard';
+import { MIPage } from './pages/MI';
 import { CasesPage } from './pages/Cases';
 import { CaseDetailPage } from './pages/CaseDetail';
 import { JobsPage } from './pages/Jobs';
@@ -30,6 +31,7 @@ export function App() {
             {/* Protected admin/xpert routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/mi" element={<MIPage />} />
               <Route path="/cases" element={<CasesPage />} />
               <Route path="/cases/:caseId" element={<CaseDetailPage />} />
               <Route path="/jobs" element={<JobsPage />} />

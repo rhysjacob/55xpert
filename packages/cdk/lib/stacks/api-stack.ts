@@ -311,6 +311,8 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}');
     addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard');
     addRoute('AdminLeads', 'admin/leads.ts', apigw.HttpMethod.GET, '/api/v1/admin/leads');
+    // Portfolio MI: funnel, trend, time-to-accept, financials, leaderboards (TRX-25/26/28/29).
+    addRoute('AdminMI', 'admin/mi.ts', apigw.HttpMethod.GET, '/api/v1/admin/mi', { timeout: cdk.Duration.seconds(30) });
 
     // Admin: repairer organisations (TRX-37/49) + manual job push override (TRX-20).
     addRoute('AdminOrgsList', 'admin/organisations.ts', apigw.HttpMethod.GET, '/api/v1/admin/organisations');
