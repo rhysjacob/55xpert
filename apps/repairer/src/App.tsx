@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { OnboardingGate } from './components/OnboardingGate';
+import { OnboardingPage } from './pages/Onboarding';
 import { SignInPage } from './pages/SignIn';
 import { SignUpPage } from './pages/SignUp';
 import { ConfirmSignUpPage } from './pages/ConfirmSignUp';
@@ -51,14 +53,18 @@ export function App() {
 
             {/* Protected repairer app */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/jobs" element={<AvailableJobsPage />} />
-              <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-              <Route path="/jobs/:jobId/details" element={<JobDetailsPage />} />
-              <Route path="/my-jobs" element={<MyJobsPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/preferences" element={<PreferencesPage />} />
-              <Route path="/billing" element={<BillingPage />} />
+              {/* Onboarding is protected but NOT behind the gate (would loop). */}
+              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route element={<OnboardingGate />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/jobs" element={<AvailableJobsPage />} />
+                <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+                <Route path="/jobs/:jobId/details" element={<JobDetailsPage />} />
+                <Route path="/my-jobs" element={<MyJobsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/preferences" element={<PreferencesPage />} />
+                <Route path="/billing" element={<BillingPage />} />
+              </Route>
             </Route>
 
             {/* Catch-all: never render a blank page on an unknown path. */}

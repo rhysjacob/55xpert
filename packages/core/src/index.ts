@@ -16,6 +16,7 @@ export * from './types/ingestion';
 export * from './constants/panels';
 export * from './constants/matrix-prices';
 export * from './constants/models';
+export * from './constants/postcode-areas';
 
 // Warranty schemes (per-company rulesets)
 export * from './schemes';
