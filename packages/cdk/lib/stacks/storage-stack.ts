@@ -26,8 +26,9 @@ export class StorageStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       cors: [
         {
+          // Restricted to the known SPA origins (+ localhost in dev), not '*' (TRX-72).
           allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
-          allowedOrigins: ['*'], // Restrict in production
+          allowedOrigins: config.appOrigins,
           allowedHeaders: ['*'],
           maxAge: 3600,
         },

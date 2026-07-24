@@ -16,6 +16,12 @@ export interface EnvironmentConfig {
    */
   frontendUrl: string;
   /**
+   * Browser origins allowed to upload to / read from the images bucket (S3
+   * CORS, TRX-72). The three SPA CloudFront domains, plus localhost for local
+   * dev. Replaces the previous wildcard '*'.
+   */
+  appOrigins: string[];
+  /**
    * Stripe EventBridge partner event source name (e.g.
    * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
    * Empty until configured; when set, the CDK associates it with an event bus
@@ -41,6 +47,14 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     warrantyScheme: 'company-2025',
     // Repairer app CloudFront distribution (Corexpert-dev-Frontend output).
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
+    appOrigins: [
+      'https://d3azgpmicty14y.cloudfront.net', // consumer
+      'https://d1pyyy434cv4q3.cloudfront.net', // repairer
+      'https://d1pqg5zsx4s9wp.cloudfront.net', // admin
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+    ],
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
@@ -58,6 +72,12 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     warrantyScheme: 'company-2025',
     // TODO: set to the production repairer domain once it exists.
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
+    // TODO: replace with the production SPA domains once custom domains exist.
+    appOrigins: [
+      'https://d3azgpmicty14y.cloudfront.net',
+      'https://d1pyyy434cv4q3.cloudfront.net',
+      'https://d1pqg5zsx4s9wp.cloudfront.net',
+    ],
     stripeEventSourceName: '',
     stripePriceId: '',
   },
