@@ -10,6 +10,7 @@ export const TABLES = {
   ORGANISATIONS: `corexpert-${STAGE}-organisations`,
   NETWORK_LINKS: `corexpert-${STAGE}-network-links`,
   INGESTIONS: `corexpert-${STAGE}-ingestions`,
+  LEADS: `corexpert-${STAGE}-leads`,
 } as const;
 
 export const GSI = {

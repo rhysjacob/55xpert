@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '../../lib/api-client';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 
@@ -17,12 +19,23 @@ export function ContactForm({ heading = 'Speak to a member of our team' }: { hea
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [slot, setSlot] = useState(TIME_SLOTS[0]);
-  const [submitted, setSubmitted] = useState(false);
+
+  const submit = useMutation({
+    mutationFn: () =>
+      api.post('/api/v1/leads', {
+        type: 'CONTACT',
+        name,
+        email,
+        phone: phone || undefined,
+        organisation: business || undefined,
+        data: { preferredTime: slot },
+      }),
+  });
+  const submitted = submit.isSuccess;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // TODO: POST to a lead-capture endpoint (SES email + leads table).
-    setSubmitted(true);
+    submit.mutate();
   };
 
   if (submitted) {
@@ -65,7 +78,10 @@ export function ContactForm({ heading = 'Speak to a member of our team' }: { hea
           ))}
         </select>
       </div>
-      <Button type="submit" className="w-full">Request a call</Button>
+      {submit.isError && (
+        <p className="text-sm text-red-600">Sorry — something went wrong. Please try again.</p>
+      )}
+      <Button type="submit" className="w-full" loading={submit.isPending}>Request a call</Button>
     </form>
   );
 }

@@ -50,6 +50,7 @@ new ApiStack(app, `${prefix}-Api`, {
   organisationsTable: databaseStack.organisationsTable,
   networkLinksTable: databaseStack.networkLinksTable,
   ingestionsTable: databaseStack.ingestionsTable,
+  leadsTable: databaseStack.leadsTable,
   imagesBucket: storageStack.imagesBucket,
 });
 

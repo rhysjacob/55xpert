@@ -11,6 +11,7 @@ export * from './types/payment';
 export * from './types/api';
 export * from './types/organisation';
 export * from './types/ingestion';
+export * from './types/lead';
 
 // Constants
 export * from './constants/panels';

@@ -27,6 +27,8 @@ export interface EnvironmentConfig {
    * out of sandbox to email arbitrary recipients.
    */
   notificationsFromEmail: string;
+  /** Internal inbox that receives new marketing-lead notifications (TRX-71). */
+  leadsEmail: string;
   /**
    * Stripe EventBridge partner event source name (e.g.
    * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
@@ -62,6 +64,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
       'http://localhost:3002',
     ],
     notificationsFromEmail: 'notify@d55.co.uk',
+    leadsEmail: 'rhys.jacob@d55.co.uk',
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
@@ -86,6 +89,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
       'https://d1pqg5zsx4s9wp.cloudfront.net',
     ],
     notificationsFromEmail: 'notify@repairxchange.co.uk',
+    leadsEmail: 'hello@repairxchange.co.uk',
     stripeEventSourceName: '',
     stripePriceId: '',
   },

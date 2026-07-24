@@ -17,6 +17,7 @@ export class DatabaseStack extends cdk.Stack {
   public readonly organisationsTable: dynamodb.Table;
   public readonly networkLinksTable: dynamodb.Table;
   public readonly ingestionsTable: dynamodb.Table;
+  public readonly leadsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -173,6 +174,15 @@ export class DatabaseStack extends cdk.Stack {
       tableName: `corexpert-${config.stage}-ingestions`,
       partitionKey: { name: 'warrantyCompanyId', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'externalRef', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+
+    // Captured marketing leads (TRX-71). Small; scanned for the admin list.
+    this.leadsTable = new dynamodb.Table(this, 'LeadsTable', {
+      tableName: `corexpert-${config.stage}-leads`,
+      partitionKey: { name: 'leadId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: removal,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
