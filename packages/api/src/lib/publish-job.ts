@@ -5,6 +5,7 @@ import type { Case, Job, CaseStatus } from '@corexpert/core';
 import { logger } from './logger';
 import { notifyWarrantyCompany } from './warranty-notify';
 import { geocodePostcode } from './geocode';
+import { emitDomainEvent, DomainEvent } from './events';
 
 const INTRODUCTION_FEE = Number(process.env['INTRODUCTION_FEE'] ?? '2500');
 const JOB_EXPIRY_DAYS = 7;
@@ -91,6 +92,10 @@ export async function publishJobForCase(caseData: Case): Promise<Job> {
       });
     }
   }
+
+  // Fan out notifications off an event (repairer job alerts, TRX-60) — the
+  // consumer resolves recipients and sends; publishing doesn't wait on it.
+  await emitDomainEvent(DomainEvent.JOB_PUBLISHED, { jobId: job.jobId });
 
   logger.info('Job published', { jobId: job.jobId, caseId: caseData.caseId });
 
