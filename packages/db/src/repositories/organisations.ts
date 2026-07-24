@@ -34,7 +34,7 @@ export class OrganisationsRepository {
   /** Patch mutable fields (name, status, capability, primary contact). Bumps updatedAt. */
   async update(
     organisationId: string,
-    patch: Partial<Pick<RepairerOrganisation, 'name' | 'status' | 'capability' | 'primaryContactUserId'>>,
+    patch: Partial<Pick<RepairerOrganisation, 'name' | 'status' | 'capability' | 'primaryContactUserId' | 'businessType' | 'onboarding'>>,
   ): Promise<void> {
     const sets: string[] = ['updatedAt = :now'];
     const values: Record<string, unknown> = { ':now': new Date().toISOString() };
@@ -56,6 +56,14 @@ export class OrganisationsRepository {
     if (patch.primaryContactUserId !== undefined) {
       sets.push('primaryContactUserId = :pc');
       values[':pc'] = patch.primaryContactUserId;
+    }
+    if (patch.businessType !== undefined) {
+      sets.push('businessType = :bt');
+      values[':bt'] = patch.businessType;
+    }
+    if (patch.onboarding !== undefined) {
+      sets.push('onboarding = :ob');
+      values[':ob'] = patch.onboarding;
     }
     await docClient.send(
       new UpdateCommand({

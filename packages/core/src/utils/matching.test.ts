@@ -44,6 +44,23 @@ describe('evaluateMatch', () => {
     expect(evaluateMatch({ ...baseJob, repairMethods: ['REPLACE'] }, baseTarget).reason).toBe('repair-method');
   });
 
+  it('matches by district first, then falls back to the same area', () => {
+    const t = { ...baseTarget, capability: { ...baseTarget.capability, coverageAreas: ['SK6'], basePostcode: undefined, coverageRadiusKm: undefined } };
+    // exact district
+    expect(evaluateMatch({ ...baseJob, postcode: 'SK6 5PJ' }, t)).toMatchObject({ matched: true, exact: true });
+    // same area, different district → area fallback
+    expect(evaluateMatch({ ...baseJob, postcode: 'SK7 1AA' }, t)).toMatchObject({ matched: true, exact: false });
+    // different area → no match
+    expect(evaluateMatch({ ...baseJob, postcode: 'M1 1AE' }, t).reason).toBe('out-of-area');
+  });
+
+  it('an AREA entry does not leak to look-alike areas (M vs ME/MK)', () => {
+    const t = { ...baseTarget, capability: { ...baseTarget.capability, coverageAreas: ['M'], basePostcode: undefined } };
+    expect(evaluateMatch({ ...baseJob, postcode: 'M1 1AE' }, t).matched).toBe(true);   // Manchester
+    expect(evaluateMatch({ ...baseJob, postcode: 'ME1 2AB' }, t).reason).toBe('out-of-area'); // Medway
+    expect(evaluateMatch({ ...baseJob, postcode: 'MK1 1AA' }, t).reason).toBe('out-of-area'); // Milton Keynes
+  });
+
   it('applies nearest-area fallback when not in explicit coverage (TRX-12)', () => {
     const target = { ...baseTarget, capability: { ...baseTarget.capability, coverageAreas: ['SW1'] } };
     // job SE1 is not in SW1 coverage; base SW1A vs SE1 shares "S" → proximity 0.25 < 0.5 → out

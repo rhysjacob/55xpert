@@ -29,9 +29,26 @@ export function isRepairerMatchable(status: RepairerStatus | undefined): boolean
  * e.g. ["SW", "SE1", "M"]) rather than lat/lng, since we hold no geocoding;
  * see utils/postcode.ts.
  */
+/** Repair service specialisms a repairer offers (onboarding capabilities). */
+export const RepairerService = {
+  SMART: 'SMART',
+  BODYSHOP: 'BODYSHOP',
+  ALLOY: 'ALLOY',
+  GLASS: 'GLASS',
+  EV: 'EV',
+  ADAS: 'ADAS',
+  COSMETIC: 'COSMETIC',
+  STRUCTURAL: 'STRUCTURAL',
+  MOBILE: 'MOBILE',
+  PAINT: 'PAINT',
+} as const;
+export type RepairerService = (typeof RepairerService)[keyof typeof RepairerService];
+
 export interface RepairerCapability {
   vehicleSizes: VehicleSize[];
   repairMethods: RepairMethod[];
+  /** Service specialisms offered (SMART, Bodyshop, Alloy, …) — from onboarding. */
+  services?: RepairerService[];
   /** Postcode prefixes this org covers (normalised: uppercase, no spaces). */
   coverageAreas: string[];
   /** Home postcode — used to rank matched jobs by proximity (TRX-13). */
@@ -54,11 +71,56 @@ export interface RepairerCapability {
  * footprint and standing. Individual logins are `User`s carrying the
  * `organisationId` on their `RepairerProfile`.
  */
+/** Business classification captured at onboarding. */
+export const BusinessType = {
+  INDEPENDENT: 'Independent Repairer',
+  MOBILE: 'Mobile Repairer',
+  GROUP: 'Group / Multi-site',
+  SPECIALIST: 'Specialist',
+} as const;
+export type BusinessType = (typeof BusinessType)[keyof typeof BusinessType];
+
+/** A repairer's mobile-unit fleet details (onboarding Section E). */
+export interface MobileUnitDetails {
+  count: number;
+  /** Ticked van equipment items (Power Source, Pin Puller, …). */
+  equipment: string[];
+  equipmentOther?: string;
+  fullyEquipped?: boolean;
+  yearRound?: boolean;
+  needsDriveway?: boolean;
+  carParkRoadside?: boolean;
+  notes?: string;
+}
+
+/**
+ * The full repairer onboarding record (spreadsheet "Repairer Onboarding Build
+ * Spec"). Coverage postcodes + travel radius + services also mirror onto the
+ * org's {@link RepairerCapability} so the matching engine uses them directly;
+ * the rest is operational metadata kept here.
+ */
+export interface RepairerOnboarding {
+  travelRadiusMiles?: number;
+  preferredJobTypes: string[];
+  dailyCapacity?: number;
+  capsEnabled?: boolean;
+  capsId?: string;
+  mobileUnits?: MobileUnitDetails;
+  accuracyConfirmed: boolean;
+  termsAcceptedAt?: string;
+  /** Set once Step 1 is submitted — used to gate the app / show reminders. */
+  completedAt?: string;
+}
+
 export interface RepairerOrganisation {
   organisationId: string;
   name: string;
   status: RepairerStatus;
+  /** Business classification (Independent, Mobile, Group, Specialist). */
+  businessType?: BusinessType;
   capability: RepairerCapability;
+  /** Onboarding answers (operational + mobile-unit detail + T&Cs). */
+  onboarding?: RepairerOnboarding;
   /** The owning/admin user for the org (first signup, or reassigned). */
   primaryContactUserId?: string;
   createdAt: string;
