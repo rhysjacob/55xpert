@@ -57,6 +57,8 @@ export async function publishJobForCase(caseData: Case): Promise<Job> {
     indicativeCost: caseData.triageResult.totalEstimatedCost,
     notificationsSent: 0,
     createdAt: now.toISOString(),
+    // Inherit the case's tenant so matching can scope to its network (TRX-78).
+    ...(caseData.warrantyCompanyId ? { warrantyCompanyId: caseData.warrantyCompanyId } : {}),
   };
 
   await jobs.create(job);

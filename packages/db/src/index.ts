@@ -6,3 +6,6 @@ export { JobsRepository } from './repositories/jobs';
 export { PaymentsRepository } from './repositories/payments';
 export { CorrectionsRepository } from './repositories/corrections';
 export { WarrantyCompaniesRepository } from './repositories/warranty-companies';
+export { OrganisationsRepository } from './repositories/organisations';
+export { NetworkLinksRepository } from './repositories/network-links';
+export { GSI } from './tables';

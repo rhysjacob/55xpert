@@ -14,6 +14,8 @@ export class DatabaseStack extends cdk.Stack {
   public readonly paymentsTable: dynamodb.Table;
   public readonly correctionsTable: dynamodb.Table;
   public readonly warrantyCompaniesTable: dynamodb.Table;
+  public readonly organisationsTable: dynamodb.Table;
+  public readonly networkLinksTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -83,6 +85,12 @@ export class DatabaseStack extends cdk.Stack {
       sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
+    // List an organisation's members (multi-user orgs, enable/disable cascades).
+    this.usersTable.addGlobalSecondaryIndex({
+      indexName: 'organisationId-index',
+      partitionKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
 
     // Payments table
     this.paymentsTable = new dynamodb.Table(this, 'PaymentsTable', {
@@ -124,6 +132,32 @@ export class DatabaseStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: removal,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+
+    // Repairer organisations — the company grouping repairer users, plus their
+    // capability + coverage + registration status. Small, admin-managed.
+    this.organisationsTable = new dynamodb.Table(this, 'OrganisationsTable', {
+      tableName: `corexpert-${config.stage}-organisations`,
+      partitionKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+
+    // Per-warranty-company repairer networks (TRX-78). PK company + SK org lists
+    // a company's network directly; the org GSI resolves an org's companies.
+    this.networkLinksTable = new dynamodb.Table(this, 'NetworkLinksTable', {
+      tableName: `corexpert-${config.stage}-network-links`,
+      partitionKey: { name: 'warrantyCompanyId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+    this.networkLinksTable.addGlobalSecondaryIndex({
+      indexName: 'organisationId-index',
+      partitionKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
     });
   }
 }

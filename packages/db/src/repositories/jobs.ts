@@ -121,6 +121,28 @@ export class JobsRepository {
     );
   }
 
+  /**
+   * Manually push a job to one or more organisations (admin override, TRX-20).
+   * Sets the full pushed-org list; those orgs then see the job regardless of
+   * automatic matching. Only valid while the job is still OPEN.
+   */
+  async setPushedOrganisations(jobId: string, organisationIds: string[]): Promise<void> {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.JOBS,
+        Key: { jobId },
+        UpdateExpression: 'SET pushedOrganisationIds = :ids, updatedAt = :now',
+        ConditionExpression: '#status = :open',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':ids': organisationIds,
+          ':open': 'OPEN',
+          ':now': new Date().toISOString(),
+        },
+      }),
+    );
+  }
+
   async acceptJob(jobId: string, acceptance: JobAcceptance): Promise<boolean> {
     try {
       await docClient.send(

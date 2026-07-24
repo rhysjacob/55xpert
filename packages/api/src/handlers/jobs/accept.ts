@@ -5,9 +5,10 @@ import { getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { logger } from '../../lib/logger';
 import { JobsRepository, CasesRepository, UsersRepository } from '@corexpert/db';
-import { NotFoundError, ConflictError, ForbiddenError, isSubscriptionActive } from '@corexpert/core';
+import { NotFoundError, ConflictError, ForbiddenError, isSubscriptionActive, evaluateMatch } from '@corexpert/core';
 import type { CaseStatus, JobAcceptance } from '@corexpert/core';
 import { createMatchFeeInvoiceItem } from '../../lib/stripe';
+import { resolveMatchTarget, jobToMatchInput } from '../../lib/matching';
 
 const jobs = new JobsRepository();
 const cases = new CasesRepository();
@@ -31,6 +32,16 @@ async function acceptHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   }
   if (job.expiresAt && new Date(job.expiresAt) < new Date()) {
     throw new ConflictError('This job has expired');
+  }
+
+  // Enforce matching: a repairer may only accept a job they match (network,
+  // capability, coverage) or that an admin pushed to their org (TRX-20). Without
+  // this the matched list would be merely advisory — a guessed jobId could win
+  // an out-of-area job.
+  const target = repairer ? await resolveMatchTarget(repairer) : null;
+  const pushed = !!target?.organisationId && (job.pushedOrganisationIds ?? []).includes(target.organisationId);
+  if (!pushed && !(target && evaluateMatch(jobToMatchInput(job), target).matched)) {
+    throw new ForbiddenError('This job is not available to you');
   }
 
   // Win the job first (fastest-finger conditional write), then charge — so a

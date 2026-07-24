@@ -35,6 +35,12 @@ export interface Case {
   referenceNo: string;
   userId: string;
   status: CaseStatus;
+  /**
+   * The warranty company this case belongs to (multi-tenancy phase 3). Absent
+   * for consumer-originated single-tenant cases; when set it is inherited by
+   * the published job so matching can scope to that company's network (TRX-78).
+   */
+  warrantyCompanyId?: string;
   postcode?: string;
   incidentDate?: string;
   incidentNotes?: string;

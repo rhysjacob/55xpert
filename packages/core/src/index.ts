@@ -9,6 +9,7 @@ export * from './types/vehicle';
 export * from './types/job';
 export * from './types/payment';
 export * from './types/api';
+export * from './types/organisation';
 
 // Constants
 export * from './constants/panels';
@@ -23,6 +24,7 @@ export * from './utils/eligibility';
 export * from './utils/fraud-score';
 export * from './utils/matrix-calculator';
 export * from './utils/matching';
+export * from './utils/postcode';
 export * from './utils/validators';
 export * from './utils/humanize';
 
