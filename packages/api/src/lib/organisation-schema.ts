@@ -16,10 +16,13 @@ export const capabilitySchema = z
     repairMethods: z.array(repairMethod),
     coverageAreas: z.array(z.string().min(1).max(8)).max(200),
     basePostcode: z.string().min(1).max(8).optional(),
+    /** Fallback coverage radius (km) used when the job's area isn't listed. */
+    coverageRadiusKm: z.number().positive().max(500).optional(),
   })
   .transform((c): RepairerCapability => ({
     vehicleSizes: c.vehicleSizes,
     repairMethods: c.repairMethods,
     coverageAreas: [...new Set(c.coverageAreas.map(normalisePostcode).filter(Boolean))],
     ...(c.basePostcode ? { basePostcode: normalisePostcode(c.basePostcode) } : {}),
+    ...(c.coverageRadiusKm != null ? { coverageRadiusKm: c.coverageRadiusKm } : {}),
   }));

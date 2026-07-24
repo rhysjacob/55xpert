@@ -6,6 +6,7 @@ import {
   postcodeProximity,
   postcodeMatchesAny,
   sharePostcodePrefix,
+  haversineDistanceKm,
 } from './postcode';
 
 describe('normalisePostcode', () => {
@@ -62,6 +63,24 @@ describe('postcodeMatchesAny', () => {
   });
   it('ignores empty prefixes (never matches everything)', () => {
     expect(postcodeMatchesAny('B33 8TH', ['', '  '])).toBe(false);
+  });
+});
+
+describe('haversineDistanceKm', () => {
+  it('is ~0 for the same point', () => {
+    expect(haversineDistanceKm({ lat: 51.5, lng: -0.12 }, { lat: 51.5, lng: -0.12 })).toBeCloseTo(0, 5);
+  });
+  it('matches a known distance (London↔Manchester ≈ 262 km)', () => {
+    const london = { lat: 51.5074, lng: -0.1278 };
+    const manchester = { lat: 53.4808, lng: -2.2426 };
+    const d = haversineDistanceKm(london, manchester);
+    expect(d).toBeGreaterThan(255);
+    expect(d).toBeLessThan(270);
+  });
+  it('is symmetric', () => {
+    const a = { lat: 51.5, lng: -0.1 };
+    const b = { lat: 52.2, lng: -1.5 };
+    expect(haversineDistanceKm(a, b)).toBeCloseTo(haversineDistanceKm(b, a), 6);
   });
 });
 

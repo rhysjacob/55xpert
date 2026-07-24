@@ -10,6 +10,7 @@ import { logger } from '../../lib/logger';
 import { createStripeCustomer } from '../../lib/stripe';
 import { outwardCode, normalisePostcode } from '@corexpert/core';
 import type { User, UserRole, RepairerProfile, RepairerOrganisation } from '@corexpert/core';
+import { geocodePostcode } from '../../lib/geocode';
 
 const users = new UsersRepository();
 const orgs = new OrganisationsRepository();
@@ -55,6 +56,13 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
     const postcode = userAttributes['custom:postcode'];
     if (postcode) repairer.postcode = postcode;
 
+    // Geocode the postcode once (best-effort) for distance-based matching.
+    const coords = postcode ? await geocodePostcode(postcode) : null;
+    if (coords) {
+      repairer.lat = coords.lat;
+      repairer.lng = coords.lng;
+    }
+
     // Resolve the organisation (TRX-37/44/49/52). An invited member carries the
     // org id (set by the invite flow) and joins it; a self-signup is a new
     // business owner, so we create a PENDING org awaiting admin approval. Both
@@ -74,6 +82,7 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
             repairMethods: [],
             coverageAreas: postcode ? [outwardCode(postcode)] : [],
             ...(postcode ? { basePostcode: normalisePostcode(postcode) } : {}),
+            ...(coords ? { baseLat: coords.lat, baseLng: coords.lng } : {}),
           },
           primaryContactUserId: userId,
           createdAt: now,

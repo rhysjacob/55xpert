@@ -7,6 +7,7 @@ import { ok } from '../../lib/response';
 import { UsersRepository, OrganisationsRepository } from '@corexpert/db';
 import { NotFoundError } from '@corexpert/core';
 import { capabilitySchema } from '../../lib/organisation-schema';
+import { geocodeCapabilityBase } from '../../lib/geocode';
 
 const users = new UsersRepository();
 const orgs = new OrganisationsRepository();
@@ -53,7 +54,9 @@ async function organisationHandler(event: APIGatewayProxyEventV2): Promise<APIGa
 
   // PUT — self-serve capability/name edit (not status, not membership).
   const body = parseBody(event, updateSchema);
-  await orgs.update(org.organisationId, body);
+  // Re-geocode the base whenever the capability (basePostcode) changes.
+  const patch = body.capability ? { ...body, capability: await geocodeCapabilityBase(body.capability) } : body;
+  await orgs.update(org.organisationId, patch);
   return ok({ organisation: await orgs.getById(org.organisationId) });
 }
 

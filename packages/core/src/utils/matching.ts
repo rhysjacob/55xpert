@@ -3,7 +3,10 @@ import type { RepairMethod } from '../types/triage';
 import type { VehicleSize } from '../types/vehicle';
 import type { RepairerCapability, RepairerStatus } from '../types/organisation';
 import { isRepairerMatchable } from '../types/organisation';
-import { postcodeMatchesAny, postcodeProximity, outwardCode } from './postcode';
+import { postcodeMatchesAny, postcodeProximity, outwardCode, haversineDistanceKm } from './postcode';
+
+/** Miles→km, for repairer preferences expressed in miles. */
+const MILES_TO_KM = 1.60934;
 
 /**
  * Job facts the matcher filters on. Distilled from a `Job` so the engine stays
@@ -15,6 +18,9 @@ export interface JobMatchInput {
   repairMethods: RepairMethod[];
   /** When set, only repairers enabled in this company's network match (TRX-78). */
   warrantyCompanyId?: string;
+  /** Geocoded job coordinates, when available — enables real distance matching. */
+  lat?: number;
+  lng?: number;
 }
 
 /**
@@ -36,8 +42,11 @@ export interface MatchResult {
   /** True when the job postcode is inside an explicit coverage area (vs a
    *  nearest-area fallback, TRX-12). */
   exact: boolean;
-  /** 0–1 proximity for ranking the matched list (TRX-13). */
+  /** 0–1 proximity for ranking when no coordinates are available (prefix proxy). */
   proximity: number;
+  /** Real great-circle distance in km when both sides are geocoded (preferred
+   *  for ranking, TRX-13). Absent when either side lacks coordinates. */
+  distanceKm?: number;
 }
 
 /**
@@ -76,12 +85,31 @@ export function evaluateMatch(job: JobMatchInput, target: RepairerMatchTarget): 
     if (!overlap) return miss('repair-method');
   }
 
-  // Coverage: explicit area match, else nearest-area fallback by base proximity.
-  const base = target.capability.basePostcode;
-  const exact = postcodeMatchesAny(job.postcode, target.capability.coverageAreas ?? []);
-  const proximity = base ? postcodeProximity(base, job.postcode) : exact ? 1 : 0;
+  // Real distance between the repairer's base and the job, when both geocoded.
+  const cap = target.capability;
+  const baseCoords = cap.baseLat != null && cap.baseLng != null ? { lat: cap.baseLat, lng: cap.baseLng } : null;
+  const jobCoords = job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null;
+  const distanceKm = baseCoords && jobCoords ? haversineDistanceKm(baseCoords, jobCoords) : undefined;
 
-  if (exact) return { matched: true, exact: true, proximity };
+  // Coverage — postcode areas first (primary), then a radius fallback by real
+  // distance, then the legacy prefix-proximity fallback when we have no coords.
+  const base = cap.basePostcode;
+  const proximity = base ? postcodeProximity(base, job.postcode) : 0;
+  const exact = postcodeMatchesAny(job.postcode, cap.coverageAreas ?? []);
+
+  if (exact) {
+    return { matched: true, exact: true, proximity: proximity || 1, ...(distanceKm != null ? { distanceKm } : {}) };
+  }
+
+  // Radius fallback (geo): only when we have a real distance and a radius set.
+  if (distanceKm != null && cap.coverageRadiusKm != null) {
+    if (distanceKm <= cap.coverageRadiusKm) {
+      return { matched: true, exact: false, proximity, distanceKm };
+    }
+    return miss('out-of-radius');
+  }
+
+  // Legacy fallback: prefix proximity (used until a postcode is geocoded).
   if (base && proximity >= FALLBACK_PROXIMITY_THRESHOLD) {
     return { matched: true, exact: false, proximity };
   }
@@ -89,14 +117,19 @@ export function evaluateMatch(job: JobMatchInput, target: RepairerMatchTarget): 
 }
 
 /**
- * Rank matched jobs for a repairer: exact-area matches first, then by proximity
- * (nearest area), then most-recently published (stable-ish) (TRX-13).
+ * Rank matched jobs for a repairer: exact-area matches first, then nearest —
+ * by real distance when both carry it, else by the prefix proximity proxy —
+ * then most-recently published (stable-ish) (TRX-13).
  */
 export function compareByMatch(
-  a: { exact: boolean; proximity: number; publishedAt?: string },
-  b: { exact: boolean; proximity: number; publishedAt?: string },
+  a: { exact: boolean; proximity: number; distanceKm?: number; publishedAt?: string },
+  b: { exact: boolean; proximity: number; distanceKm?: number; publishedAt?: string },
 ): number {
   if (a.exact !== b.exact) return a.exact ? -1 : 1;
+  // Prefer real distance when both have it (nearer first).
+  if (a.distanceKm != null && b.distanceKm != null && a.distanceKm !== b.distanceKm) {
+    return a.distanceKm - b.distanceKm;
+  }
   if (a.proximity !== b.proximity) return b.proximity - a.proximity;
   return (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '');
 }
@@ -120,6 +153,11 @@ export function targetFromUser(user: User): RepairerMatchTarget | null {
       repairMethods: prefs?.repairMethods ?? [],
       coverageAreas,
       ...(profile.postcode ? { basePostcode: profile.postcode } : {}),
+      // Coords come from the (geocoded) profile; the miles preference becomes
+      // the km radius fallback so a legacy repairer works once geocoded.
+      ...(profile.lat != null ? { baseLat: profile.lat } : {}),
+      ...(profile.lng != null ? { baseLng: profile.lng } : {}),
+      ...(prefs?.maxDistanceMiles != null ? { coverageRadiusKm: prefs.maxDistanceMiles * MILES_TO_KM } : {}),
     },
     // Legacy standalone repairers belong to no per-company network.
     enabledNetworks: [],

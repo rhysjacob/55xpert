@@ -4,6 +4,7 @@ import { ValidationError } from '@corexpert/core';
 import type { Case, Job, CaseStatus } from '@corexpert/core';
 import { logger } from './logger';
 import { notifyWarrantyCompany } from './warranty-notify';
+import { geocodePostcode } from './geocode';
 
 const INTRODUCTION_FEE = Number(process.env['INTRODUCTION_FEE'] ?? '2500');
 const JOB_EXPIRY_DAYS = 7;
@@ -45,6 +46,9 @@ export async function publishJobForCase(caseData: Case): Promise<Job> {
     caseData.triageResult.panels.map((p) => p.repairMethod),
   )];
 
+  // Geocode the job location (best-effort) so matching can rank by real distance.
+  const coords = caseData.postcode ? await geocodePostcode(caseData.postcode) : null;
+
   const job: Job = {
     jobId: randomUUID(),
     caseId: caseData.caseId,
@@ -54,6 +58,7 @@ export async function publishJobForCase(caseData: Case): Promise<Job> {
     introductionFee: INTRODUCTION_FEE,
     location: {
       postcode: caseData.postcode ?? '',
+      ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
     },
     vehicleSummary: {
       make: caseData.vehicle?.make ?? '',

@@ -36,6 +36,15 @@ export interface RepairerCapability {
   coverageAreas: string[];
   /** Home postcode — used to rank matched jobs by proximity (TRX-13). */
   basePostcode?: string;
+  /** Geocoded coordinates of basePostcode (populated best-effort at write). */
+  baseLat?: number;
+  baseLng?: number;
+  /**
+   * Fallback coverage radius in km around the base. When the job's area isn't
+   * in `coverageAreas`, a repairer still matches if the job is within this
+   * radius (real distance) — the geo-powered nearest-area fallback (TRX-12).
+   */
+  coverageRadiusKm?: number;
 }
 
 /**

@@ -121,6 +121,19 @@ export class JobsRepository {
     );
   }
 
+  /** Backfill a job's geocoded location coordinates. */
+  async setLocationCoords(jobId: string, lat: number, lng: number): Promise<void> {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.JOBS,
+        Key: { jobId },
+        UpdateExpression: 'SET #loc.lat = :lat, #loc.lng = :lng, updatedAt = :now',
+        ExpressionAttributeNames: { '#loc': 'location' },
+        ExpressionAttributeValues: { ':lat': lat, ':lng': lng, ':now': new Date().toISOString() },
+      }),
+    );
+  }
+
   /**
    * Manually push a job to one or more organisations (admin override, TRX-20).
    * Sets the full pushed-org list; those orgs then see the job regardless of

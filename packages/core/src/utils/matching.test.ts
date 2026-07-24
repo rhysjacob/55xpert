@@ -66,6 +66,52 @@ describe('compareByMatch', () => {
     expect(sorted[0]).toEqual({ exact: true, proximity: 0.5 });
     expect(sorted[1]).toEqual({ exact: false, proximity: 0.9 });
   });
+
+  it('ranks by real distance when both carry it (nearer first)', () => {
+    const items = [
+      { exact: false, proximity: 0, distanceKm: 40 },
+      { exact: false, proximity: 0, distanceKm: 5 },
+      { exact: false, proximity: 0, distanceKm: 20 },
+    ];
+    const sorted = [...items].sort(compareByMatch);
+    expect(sorted.map((x) => x.distanceKm)).toEqual([5, 20, 40]);
+  });
+});
+
+describe('evaluateMatch — geo', () => {
+  const geoTarget: RepairerMatchTarget = {
+    ...baseTarget,
+    capability: {
+      vehicleSizes: ['MEDIUM'],
+      repairMethods: ['REPAIR'],
+      coverageAreas: ['SW'], // primary: explicit area
+      basePostcode: 'SW1A 1AA',
+      baseLat: 51.501,
+      baseLng: -0.1416,
+      coverageRadiusKm: 15,
+    },
+  };
+
+  it('reports real distance on an exact-area match when geocoded', () => {
+    const r = evaluateMatch({ ...baseJob, postcode: 'SW2 3BB', lat: 51.45, lng: -0.12 }, geoTarget);
+    expect(r.matched).toBe(true);
+    expect(r.exact).toBe(true);
+    expect(r.distanceKm).toBeGreaterThan(0);
+  });
+
+  it('matches out-of-area jobs within the radius (geo fallback)', () => {
+    // ~3 km away, not in "SW" coverage but inside 15 km radius.
+    const r = evaluateMatch({ ...baseJob, postcode: 'SE1 7PB', lat: 51.5045, lng: -0.0865 }, geoTarget);
+    expect(r.matched).toBe(true);
+    expect(r.exact).toBe(false);
+    expect(r.distanceKm).toBeLessThan(15);
+  });
+
+  it('rejects out-of-area jobs beyond the radius', () => {
+    // Manchester — far outside 15 km.
+    const r = evaluateMatch({ ...baseJob, postcode: 'M1 1AE', lat: 53.4808, lng: -2.2426 }, geoTarget);
+    expect(r.reason).toBe('out-of-radius');
+  });
 });
 
 describe('targetFromUser', () => {
