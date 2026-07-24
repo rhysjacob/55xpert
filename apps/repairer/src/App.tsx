@@ -20,6 +20,7 @@ import { PartnershipsPage } from './pages/marketing/Partnerships';
 import { ForRepairersPage } from './pages/marketing/ForRepairers';
 import { ForCustomersPage } from './pages/marketing/ForCustomers';
 import { LearnMorePage } from './pages/marketing/LearnMore';
+import { RegisterInterestPage } from './pages/marketing/RegisterInterest';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +41,7 @@ export function App() {
             <Route path="/for-repairers" element={<ForRepairersPage />} />
             <Route path="/for-customers" element={<ForCustomersPage />} />
             <Route path="/learn-more" element={<LearnMorePage />} />
+            <Route path="/register-interest" element={<RegisterInterestPage />} />
 
             {/* Public auth routes */}
             <Route path="/sign-in" element={<SignInPage />} />

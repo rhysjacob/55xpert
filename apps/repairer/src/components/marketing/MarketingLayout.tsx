@@ -1,15 +1,19 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router';
+import { useAuth } from '../../hooks/useAuth';
 
 const NAV = [
   { to: '/about', label: 'About us' },
-  { to: '/partnerships', label: 'Group partnerships' },
-  { to: '/for-repairers', label: 'For repairers' },
-  { to: '/for-customers', label: 'For customers' },
+  { to: '/register-interest', label: 'Register' },
+  { to: '/for-repairers', label: 'Subscribe' },
 ];
 
 /** Public marketing chrome: brand nav + footer, wrapping the unauthenticated site. */
 export function MarketingLayout({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const displayName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+    : '';
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <header className="border-b border-gray-200 sticky top-0 bg-white/90 backdrop-blur z-10">
@@ -33,15 +37,28 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link to="/sign-in" className="text-sm text-gray-600 hover:text-gray-900">
-              Sign in
-            </Link>
-            <Link
-              to="/sign-up"
-              className="text-sm font-medium bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
-            >
-              Get started
-            </Link>
+            {loading ? null : user ? (
+              // Signed in: show the user, click through to the app.
+              <Link
+                to="/dashboard"
+                className="text-sm font-medium bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 max-w-[220px] truncate"
+                title={`${displayName} — go to your dashboard`}
+              >
+                {displayName}
+              </Link>
+            ) : (
+              <>
+                <Link to="/sign-in" className="text-sm text-gray-600 hover:text-gray-900">
+                  Sign in
+                </Link>
+                <Link
+                  to="/sign-up"
+                  className="text-sm font-medium bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+                >
+                  Get started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>

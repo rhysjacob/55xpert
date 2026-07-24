@@ -52,7 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     signIn: async (input) => {
-      await amplifySignIn(input);
+      try {
+        await amplifySignIn(input);
+      } catch (err) {
+        // Clear a lingering session ("There is already a signed in user") and retry.
+        if (err instanceof Error && err.name === 'UserAlreadyAuthenticatedException') {
+          await amplifySignOut();
+          await amplifySignIn(input);
+        } else {
+          throw err;
+        }
+      }
       await checkAuth();
     },
     signOut: async () => {
