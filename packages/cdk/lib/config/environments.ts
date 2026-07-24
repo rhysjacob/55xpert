@@ -22,6 +22,12 @@ export interface EnvironmentConfig {
    */
   appOrigins: string[];
   /**
+   * FROM address for outbound notification emails (TRX-60). Must be a verified
+   * SES identity (domain or address) in this account/region, and SES must be
+   * out of sandbox to email arbitrary recipients.
+   */
+  notificationsFromEmail: string;
+  /**
    * Stripe EventBridge partner event source name (e.g.
    * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
    * Empty until configured; when set, the CDK associates it with an event bus
@@ -55,6 +61,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
       'http://localhost:3001',
       'http://localhost:3002',
     ],
+    notificationsFromEmail: 'notify@d55.co.uk',
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
@@ -78,6 +85,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
       'https://d1pyyy434cv4q3.cloudfront.net',
       'https://d1pqg5zsx4s9wp.cloudfront.net',
     ],
+    notificationsFromEmail: 'notify@repairxchange.co.uk',
     stripeEventSourceName: '',
     stripePriceId: '',
   },

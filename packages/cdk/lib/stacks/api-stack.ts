@@ -70,6 +70,13 @@ export class ApiStack extends cdk.Stack {
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
     const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable];
 
+    // App domain-event bus. Producers emit (e.g. job.published); decoupled
+    // consumers (notifications) subscribe via rules — nothing sends email/etc
+    // inline from a request path (TRX-60).
+    const appEventBus = new events.EventBus(this, 'AppEventBus', {
+      eventBusName: `corexpert-${config.stage}-events`,
+    });
+
     // AI-model debug configuration (SSM). The toggle gates whether triage may use
     // a UI-selected model instead of the deploy-time default. NOTE: a deploy
     // resets both to these defaults (toggle off, model = configured default) —
@@ -97,6 +104,9 @@ export class ApiStack extends cdk.Stack {
       NETWORK_LINKS_TABLE: props.networkLinksTable.tableName,
       INGESTIONS_TABLE: props.ingestionsTable.tableName,
       IMAGE_BUCKET: props.imagesBucket.bucketName,
+      EVENT_BUS_NAME: appEventBus.eventBusName,
+      FROM_EMAIL: config.notificationsFromEmail,
+      FRONTEND_URL: config.frontendUrl,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
       WARRANTY_SCHEME: config.warrantyScheme,
@@ -124,6 +134,7 @@ export class ApiStack extends cdk.Stack {
         table.grantReadWriteData(fn.function);
       }
       props.imagesBucket.grantReadWrite(fn.function);
+      appEventBus.grantPutEventsTo(fn.function);
 
       this.api.addRoutes({
         path: routePath,
@@ -177,6 +188,7 @@ export class ApiStack extends cdk.Stack {
       table.grantReadWriteData(triageWorker.function);
     }
     props.imagesBucket.grantReadWrite(triageWorker.function);
+    appEventBus.grantPutEventsTo(triageWorker.function); // auto-publish → job.published
 
     // Grant Bedrock InvokeModel to the worker. The model is invoked via a
     // cross-region inference profile (e.g. eu.anthropic.claude-sonnet-4-6),
@@ -223,6 +235,28 @@ export class ApiStack extends cdk.Stack {
     addRoute('JobsGet', 'jobs/get.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}');
     const jobsAccept = addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept');
     addRoute('JobsDetails', 'jobs/details.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}/details');
+
+    // Notifications: consume job.published off the app bus and email matched
+    // repairers (TRX-60). Decoupled — not an HTTP route. Read-only on data; SES
+    // send granted separately. FROM must be a verified SES identity.
+    const jobPublishedNotifier = new AppLambda(this, 'JobPublishedNotifier', {
+      entry: path.join(handlersPath, 'notifications/job-published.ts'),
+      environment: sharedEnv,
+      description: 'Email matched repairers when a job is published (TRX-60)',
+      timeout: cdk.Duration.seconds(120),
+    });
+    for (const table of allTables) {
+      table.grantReadData(jobPublishedNotifier.function);
+    }
+    jobPublishedNotifier.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+    }));
+    new events.Rule(this, 'JobPublishedRule', {
+      eventBus: appEventBus,
+      eventPattern: { source: ['corexpert.app'], detailType: ['job.published'] },
+      targets: [new eventsTargets.LambdaFunction(jobPublishedNotifier.function)],
+    });
 
     // Scheduled sweeper: expire OPEN jobs past their expiry — 48h for ingested
     // warranty-company jobs, 7 days for consumer jobs — and hand ingested ones
