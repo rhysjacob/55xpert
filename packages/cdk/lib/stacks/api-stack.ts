@@ -28,6 +28,7 @@ export interface ApiStackProps extends cdk.StackProps {
   organisationsTable: dynamodb.ITable;
   networkLinksTable: dynamodb.ITable;
   ingestionsTable: dynamodb.ITable;
+  leadsTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -68,7 +69,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable, props.leadsTable];
 
     // App domain-event bus. Producers emit (e.g. job.published); decoupled
     // consumers (notifications) subscribe via rules — nothing sends email/etc
@@ -107,6 +108,7 @@ export class ApiStack extends cdk.Stack {
       EVENT_BUS_NAME: appEventBus.eventBusName,
       FROM_EMAIL: config.notificationsFromEmail,
       FRONTEND_URL: config.frontendUrl,
+      LEADS_EMAIL: config.leadsEmail,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
       WARRANTY_SCHEME: config.warrantyScheme,
@@ -148,6 +150,9 @@ export class ApiStack extends cdk.Stack {
 
     // ===== Health (no auth) =====
     addRoute('Health', 'health.ts', apigw.HttpMethod.GET, '/api/v1/health', { auth: false });
+
+    // Public marketing lead capture (TRX-71) — no auth; honeypot-guarded.
+    addRoute('LeadsSubmit', 'leads/submit.ts', apigw.HttpMethod.POST, '/api/v1/leads', { auth: false });
 
     // ===== Cases =====
     addRoute('CasesCreate', 'cases/create.ts', apigw.HttpMethod.POST, '/api/v1/cases');
@@ -305,6 +310,7 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminRepairers', 'admin/repairers.ts', apigw.HttpMethod.GET, '/api/v1/admin/repairers');
     addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}');
     addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard');
+    addRoute('AdminLeads', 'admin/leads.ts', apigw.HttpMethod.GET, '/api/v1/admin/leads');
 
     // Admin: repairer organisations (TRX-37/49) + manual job push override (TRX-20).
     addRoute('AdminOrgsList', 'admin/organisations.ts', apigw.HttpMethod.GET, '/api/v1/admin/organisations');

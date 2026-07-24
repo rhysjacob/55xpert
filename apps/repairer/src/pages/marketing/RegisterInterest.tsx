@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { MarketingLayout, PageHero } from '../../components/marketing/MarketingLayout';
+import { api } from '../../lib/api-client';
 import { Card, CardBody } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -83,15 +85,26 @@ export function RegisterInterestPage() {
   const [coverage, setCoverage] = useState('');
   const [postcodes, setPostcodes] = useState('');
   const [nextSteps, setNextSteps] = useState<string[]>([]);
-  const [submitted, setSubmitted] = useState(false);
 
   const toggle = (list: string[], set: (v: string[]) => void, v: string) =>
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
+  const submit = useMutation({
+    mutationFn: () =>
+      api.post('/api/v1/leads', {
+        type: 'REGISTER_INTEREST',
+        name: contactName,
+        email,
+        phone: phone || undefined,
+        organisation: orgName,
+        data: { tradingName, orgType, role, interests, volume, coverage, postcodes, nextSteps },
+      }),
+  });
+  const submitted = submit.isSuccess;
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // TODO: POST to a register-interest endpoint (SES email + leads table).
-    setSubmitted(true);
+    submit.mutate();
   };
 
   return (
@@ -155,7 +168,10 @@ export function RegisterInterestPage() {
                   />
                 </Section>
 
-                <Button type="submit" size="lg" className="w-full">Submit interest</Button>
+                {submit.isError && (
+                  <p className="text-sm text-red-600">Sorry — something went wrong. Please try again.</p>
+                )}
+                <Button type="submit" size="lg" className="w-full" loading={submit.isPending}>Submit interest</Button>
               </form>
             )}
           </CardBody>
