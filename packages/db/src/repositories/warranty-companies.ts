@@ -1,6 +1,6 @@
-import { GetCommand, PutCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, ScanCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient } from '../client';
-import { TABLES } from '../tables';
+import { TABLES, GSI } from '../tables';
 import type { WarrantyCompany } from '@corexpert/core';
 
 /**
@@ -31,6 +31,33 @@ export class WarrantyCompaniesRepository {
   async list(): Promise<WarrantyCompany[]> {
     const result = await docClient.send(new ScanCommand({ TableName: TABLES.WARRANTY_COMPANIES }));
     return (result.Items ?? []) as WarrantyCompany[];
+  }
+
+  /** Resolve a company by its ingestion API-key hash (TRX-14/79 auth). */
+  async getByIngestKeyHash(ingestApiKeyHash: string): Promise<WarrantyCompany | undefined> {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: TABLES.WARRANTY_COMPANIES,
+        IndexName: GSI.WARRANTY_COMPANIES_INGEST_KEY,
+        KeyConditionExpression: 'ingestApiKeyHash = :h',
+        ExpressionAttributeValues: { ':h': ingestApiKeyHash },
+        Limit: 1,
+      }),
+    );
+    return result.Items?.[0] as WarrantyCompany | undefined;
+  }
+
+  /** Store (or rotate) a company's ingestion API-key hash. */
+  async setIngestKeyHash(warrantyCompanyId: string, ingestApiKeyHash: string): Promise<void> {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.WARRANTY_COMPANIES,
+        Key: { warrantyCompanyId },
+        UpdateExpression: 'SET ingestApiKeyHash = :h, updatedAt = :now',
+        ExpressionAttributeValues: { ':h': ingestApiKeyHash, ':now': new Date().toISOString() },
+        ConditionExpression: 'attribute_exists(warrantyCompanyId)',
+      }),
+    );
   }
 
   /** Patch mutable fields (name, status, scheme). Bumps updatedAt. */

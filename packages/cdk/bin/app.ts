@@ -48,6 +48,7 @@ new ApiStack(app, `${prefix}-Api`, {
   warrantyCompaniesTable: databaseStack.warrantyCompaniesTable,
   organisationsTable: databaseStack.organisationsTable,
   networkLinksTable: databaseStack.networkLinksTable,
+  ingestionsTable: databaseStack.ingestionsTable,
   imagesBucket: storageStack.imagesBucket,
 });
 

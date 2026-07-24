@@ -8,4 +8,5 @@ export { CorrectionsRepository } from './repositories/corrections';
 export { WarrantyCompaniesRepository } from './repositories/warranty-companies';
 export { OrganisationsRepository } from './repositories/organisations';
 export { NetworkLinksRepository } from './repositories/network-links';
+export { IngestionsRepository } from './repositories/ingestions';
 export { GSI } from './tables';

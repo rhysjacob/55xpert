@@ -16,6 +16,7 @@ export class DatabaseStack extends cdk.Stack {
   public readonly warrantyCompaniesTable: dynamodb.Table;
   public readonly organisationsTable: dynamodb.Table;
   public readonly networkLinksTable: dynamodb.Table;
+  public readonly ingestionsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -133,6 +134,12 @@ export class DatabaseStack extends cdk.Stack {
       removalPolicy: removal,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
+    // Resolve an inbound ingestion request to its tenant by API-key hash (TRX-14/79).
+    this.warrantyCompaniesTable.addGlobalSecondaryIndex({
+      indexName: 'ingestApiKeyHash-index',
+      partitionKey: { name: 'ingestApiKeyHash', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
 
     // Repairer organisations — the company grouping repairer users, plus their
     // capability + coverage + registration status. Small, admin-managed.
@@ -158,6 +165,17 @@ export class DatabaseStack extends cdk.Stack {
       indexName: 'organisationId-index',
       partitionKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Ingested-job records (TRX-14/79/36). PK company + SK externalRef is the
+    // dedupe key and a company's feed. Small; no GSI needed.
+    this.ingestionsTable = new dynamodb.Table(this, 'IngestionsTable', {
+      tableName: `corexpert-${config.stage}-ingestions`,
+      partitionKey: { name: 'warrantyCompanyId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'externalRef', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
   }
 }

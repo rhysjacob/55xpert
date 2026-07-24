@@ -17,6 +17,7 @@ import { createDamageAssessor } from '@corexpert/ai';
 import type { AssessmentImage, DamageAssessmentOutput } from '@corexpert/ai';
 import { resolveTriageModel } from '../../lib/model-config';
 import { publishJobForCase } from '../../lib/publish-job';
+import { rejectIngestedCase } from '../../lib/ingest-feedback';
 
 const s3 = new S3Client({});
 const cases = new CasesRepository();
@@ -210,6 +211,12 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
         // Leave the case at TRIAGE_COMPLETE so it can be retried; don't fail triage.
         logger.error('Auto-publish failed', error, { caseId });
       }
+    } else if (nextStatus === 'INELIGIBLE') {
+      // An ingested (warranty-company) job that triages ineligible is auto-rejected
+      // back to the company with the reason (TRX-9). No-op for consumer cases.
+      await rejectIngestedCase(caseData, 'INELIGIBLE', triageResult.summary).catch((err) =>
+        logger.error('Ingestion rejection feedback failed', err, { caseId }),
+      );
     }
 
     logger.info('Triage saved', {
