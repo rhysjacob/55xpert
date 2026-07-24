@@ -82,7 +82,24 @@ async function organisationsHandler(event: APIGatewayProxyEventV2): Promise<APIG
   const existing = await orgs.getById(id);
   if (!existing) throw new NotFoundError('Organisation', id);
   await orgs.update(id, body);
-  return ok({ organisation: await orgs.getById(id) });
+
+  // Enable/disable cascade (TRX-22): a status change flows to every member's
+  // login. ACTIVE re-enables; SUSPENDED/DISABLED/PENDING disables — so a
+  // disabled org's members can't sign in or accept, and matching already skips
+  // non-ACTIVE orgs. Only cascade when the status actually changed.
+  let cascaded = 0;
+  if (body.status && body.status !== existing.status) {
+    const active = body.status === 'ACTIVE';
+    const members = await users.listByOrganisation(id);
+    await Promise.all(
+      members
+        .filter((m) => m.isActive !== active)
+        .map((m) => users.update(m.userId, { isActive: active })),
+    );
+    cascaded = members.length;
+  }
+
+  return ok({ organisation: await orgs.getById(id), membersCascaded: cascaded });
 }
 
 export const handler = withErrorHandler(organisationsHandler);

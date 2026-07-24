@@ -250,6 +250,13 @@ export class ApiStack extends cdk.Stack {
     // Repairer self-manages their org's capability + coverage (TRX-18).
     addRoute('RepairerOrgGet', 'repairers/organisation.ts', apigw.HttpMethod.GET, '/api/v1/repairer/organisation');
     addRoute('RepairerOrgUpdate', 'repairers/organisation.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/organisation');
+    // Invite a teammate into the org (TRX-52): creates a Cognito login + member.
+    const repairerInvite = addRoute('RepairerInvite', 'repairers/invite.ts', apigw.HttpMethod.POST, '/api/v1/repairer/organisation/members');
+    repairerInvite.function.addEnvironment('USER_POOL_ID', props.userPool.userPoolId);
+    repairerInvite.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['cognito-idp:AdminCreateUser', 'cognito-idp:AdminAddUserToGroup'],
+      resources: [props.userPool.userPoolArn],
+    }));
 
     // ===== Xpert Review =====
     addRoute('XpertCasesList', 'xpert/list-cases.ts', apigw.HttpMethod.GET, '/api/v1/xpert/cases');
