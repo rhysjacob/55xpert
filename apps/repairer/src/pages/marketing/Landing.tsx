@@ -1,11 +1,11 @@
 import { Link } from 'react-router';
 import { MarketingLayout } from '../../components/marketing/MarketingLayout';
 
-/** The three-step promise from the brief. */
-const STEPS = [
-  { step: 'Deploy', body: 'Damage vehicle in, instructions out. AI image triage assesses the damage in minutes.' },
-  { step: 'Match', body: 'We match the vehicle and the damage with the most qualified repairer — no onboarding, no weighted commissions.' },
-  { step: 'Repair', body: 'The repairer accepts, we step away, and the relationship flourishes.' },
+/** The intelligent-triage key benefits from the brief. */
+const BENEFITS = [
+  { title: 'Accuracy', body: 'AI triage aligned to your repair rules, matrices and operational logic.' },
+  { title: 'Speed', body: 'Instant assessment and reduced downtime — faster decisions, fewer delays.' },
+  { title: 'Control', body: 'Predictable costs and a consistent, ethical approach to deployment.' },
 ];
 
 export function LandingPage() {
@@ -15,21 +15,21 @@ export function LandingPage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-emerald-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
           <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wide">
-            Deploy · Match · Repair
+            Triage · Deploy · Match · Repair
           </p>
           <h1 className="text-4xl sm:text-6xl font-bold text-gray-900 mt-4 tracking-tight">
             Creating the perfect match
           </h1>
           <p className="text-lg sm:text-xl text-gray-600 mt-6 max-w-2xl mx-auto">
             We specialise in matching the most qualified repairer with the vehicle and the damage —
-            an ethical approach to reducing downtime and controlling costs.
+            powered by instant, AI-driven triage for accurate assessment and controlled costs.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              to="/for-customers"
+              to="/register-interest"
               className="bg-emerald-600 text-white font-medium px-6 py-3 rounded-lg hover:bg-emerald-700"
             >
-              I need repairs managed
+              Register your interest
             </Link>
             <Link
               to="/for-repairers"
@@ -41,68 +41,76 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Deploy / Match / Repair */}
+      {/* Intelligent Triage */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid gap-6 md:grid-cols-3">
-          {STEPS.map((s, i) => (
-            <div key={s.step} className="rounded-xl border border-gray-200 p-6">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center">
-                {i + 1}
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mt-4">{s.step}</h3>
-              <p className="text-gray-600 mt-2 text-sm leading-relaxed">{s.body}</p>
+        <div className="text-center max-w-3xl mx-auto">
+          <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wide">Intelligent triage</p>
+          <h2 className="text-3xl font-bold text-gray-900 mt-2">
+            Instant, accurate, AI-driven damage assessment
+          </h2>
+          <p className="text-gray-600 mt-4 leading-relaxed">
+            The Repair XChange uses advanced AI tools to triage damage instantly — aligned to your
+            business rules, repair matrices, and operational logic. That means faster decisions,
+            fewer delays, and a consistent, ethical approach to post-incident assessment.
+          </p>
+        </div>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {BENEFITS.map((b) => (
+            <div key={b.title} className="rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900">{b.title}</h3>
+              <p className="text-gray-600 mt-2 text-sm leading-relaxed">{b.body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Two audience journeys — the core of the brief's landing page */}
+      {/* Why — savings / ROI */}
+      <section className="bg-emerald-600">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-white">
+          <h2 className="text-2xl sm:text-3xl font-bold">Why The Repair XChange — let us show you the savings</h2>
+          <p className="text-emerald-50 mt-4 max-w-2xl mx-auto">
+            We'll model your return on investment against your current accident-management costs and
+            build a commitment designed around the savings for your business.
+          </p>
+          <Link
+            to="/register-interest"
+            className="mt-8 inline-block bg-white text-emerald-700 font-medium px-6 py-3 rounded-lg hover:bg-emerald-50"
+          >
+            Explore your savings
+          </Link>
+        </div>
+      </section>
+
+      {/* Two audience journeys */}
       <section className="bg-gray-50 border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid gap-6 md:grid-cols-2">
           <div className="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col">
-            <h2 className="text-xl font-bold text-gray-900">Warranty, fleet, broker, insurer or MGA?</h2>
+            <h2 className="text-xl font-bold text-gray-900">For warranty providers, fleets, brokers, insurers &amp; MGAs</h2>
             <p className="text-gray-600 mt-3 flex-1">
-              Seeking an alternative to traditional accident management? Access a best-in-class
-              repairer network, intelligent deployment and support services focused on reducing
-              cost and vehicle downtime.
+              Are you seeking an alternative solution to traditional accident management? If the
+              answer is yes, register your interest and we'll be in touch.
             </p>
             <Link
-              to="/for-customers"
+              to="/register-interest"
               className="mt-6 inline-block bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 text-center"
             >
-              Explore the customer journey
+              Register interest
             </Link>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col">
-            <h2 className="text-xl font-bold text-gray-900">A repairer or group?</h2>
+            <h2 className="text-xl font-bold text-gray-900">For repairers &amp; groups</h2>
             <p className="text-gray-600 mt-3 flex-1">
-              Looking for quality, cost-effective repair capacity? Join the XChange for a simple
-              subscription, get matched to relevant work on a fastest-finger-first basis, and
-              replace weighted commissions with a straightforward match fee.
+              Are you a repairer or group looking for quality, cost-effective repair capacity? If the
+              answer is yes, follow the repairer subscription journey to explore further.
             </p>
             <Link
               to="/for-repairers"
               className="mt-6 inline-block bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 text-center"
             >
-              Explore the repairer subscription
+              Repairer subscription journey
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Ethos strip */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">An ethical approach, built for simplicity</h2>
-        <p className="text-gray-600 mt-3 max-w-2xl mx-auto">
-          We don't want to replace traditional accident management — we're here as an alternative.
-          Our intelligent XChange solution supports AI image triage, matches the damaged vehicle
-          with the right repairer, and then lets the relationship flourish.
-        </p>
-        <div className="mt-8">
-          <Link to="/learn-more" className="text-emerald-600 font-medium hover:underline">
-            Would you like to speak to a member of our team? →
-          </Link>
         </div>
       </section>
     </MarketingLayout>
