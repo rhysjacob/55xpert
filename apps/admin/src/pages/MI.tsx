@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody } from '../components/ui/Card';
+
+interface Company { warrantyCompanyId: string; name: string }
 
 interface LeaderRow { repairerId: string; name: string; accepted: number; avgHours: number }
 interface MI {
@@ -53,13 +56,31 @@ function Leaderboard({ title, rows, metric }: { title: string; rows: LeaderRow[]
 }
 
 export function MIPage() {
-  const { data, isLoading } = useQuery({ queryKey: ['admin-mi'], queryFn: () => api.get<MI>('/api/v1/admin/mi') });
+  const [companyId, setCompanyId] = useState('');
+  const { data: companies } = useQuery({
+    queryKey: ['warranty-companies'],
+    queryFn: () => api.get<{ items: Company[] }>('/api/v1/admin/warranty-companies'),
+  });
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-mi', companyId],
+    queryFn: () => api.get<MI>(`/api/v1/admin/mi${companyId ? `?warrantyCompanyId=${encodeURIComponent(companyId)}` : ''}`),
+  });
 
   const maxTrend = Math.max(1, ...(data?.trend.flatMap((t) => [t.received, t.published, t.accepted]) ?? [1]));
 
   return (
     <Layout>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Management information</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Management information</h1>
+        <select
+          value={companyId}
+          onChange={(e) => setCompanyId(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">All companies</option>
+          {companies?.items.map((c) => <option key={c.warrantyCompanyId} value={c.warrantyCompanyId}>{c.name}</option>)}
+        </select>
+      </div>
       {isLoading || !data ? (
         <p className="text-gray-500">Loading…</p>
       ) : (

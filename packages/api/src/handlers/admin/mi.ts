@@ -1,60 +1,40 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
-import { ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { withErrorHandler } from '../../middleware/error-handler';
 import { getAuthContext, requireRole } from '../../middleware/auth';
+import { getQueryParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
-import { docClient, TABLES } from '@corexpert/db';
+import { TABLES } from '@corexpert/db';
 import type { Case, Job, User } from '@corexpert/core';
-
-/** Scan every item of a table (paged), projecting the given attributes. */
-async function scanAll<T>(table: string, projection: string, names?: Record<string, string>): Promise<T[]> {
-  const items: T[] = [];
-  let key: Record<string, unknown> | undefined;
-  do {
-    const res = await docClient.send(new ScanCommand({
-      TableName: table,
-      ProjectionExpression: projection,
-      ...(names ? { ExpressionAttributeNames: names } : {}),
-      ExclusiveStartKey: key,
-    }));
-    items.push(...((res.Items ?? []) as T[]));
-    key = res.LastEvaluatedKey;
-  } while (key);
-  return items;
-}
-
-const monthKey = (iso?: string): string | undefined => (iso ? iso.slice(0, 7) : undefined);
-const hoursBetween = (a: string, b: string): number => (new Date(b).getTime() - new Date(a).getTime()) / 3_600_000;
-
-/** The last 12 calendar months as YYYY-MM keys, oldest → newest, from a base date. */
-function last12Months(nowIso: string): string[] {
-  const [y, m] = nowIso.slice(0, 7).split('-').map(Number);
-  const out: string[] = [];
-  for (let i = 11; i >= 0; i -= 1) {
-    const d = new Date(Date.UTC(y!, m! - 1 - i, 1));
-    out.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
-  }
-  return out;
-}
+import { scanAll, monthKey, hoursBetween, last12Months } from '../../lib/mi-util';
 
 /**
  * Portfolio MI for admin (TRX-25/26/28/29): the job funnel, a rolling 12-month
  * trend, average time-to-accept, financial value processed + platform fee
  * earned, and repairer leaderboards (volume + speed). Aggregated in-memory from
  * full table scans — fine at current cardinality; move to pre-aggregation if
- * the tables grow large. `now` is passed in (tests/repro) or defaults to the
- * request time.
+ * the tables grow large.
+ *
+ * `?warrantyCompanyId=` scopes every metric to one warranty company's
+ * tenant-stamped cases + jobs (TRX-31) — omit for the whole portfolio.
  */
 async function miHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const auth = getAuthContext(event);
   requireRole(auth, 'ADMIN');
 
+  const companyId = getQueryParam(event, 'warrantyCompanyId');
+
   const nowIso = new Date().toISOString();
-  const [cases, jobs, users] = await Promise.all([
-    scanAll<Pick<Case, 'status' | 'createdAt'>>(TABLES.CASES, '#s, createdAt', { '#s': 'status' }),
-    scanAll<Job>(TABLES.JOBS, '#s, publishedAt, acceptance, introductionFee, indicativeCost', { '#s': 'status' }),
+  let [cases, jobs, users] = await Promise.all([
+    scanAll<Pick<Case, 'status' | 'createdAt' | 'warrantyCompanyId'>>(TABLES.CASES, '#s, createdAt, warrantyCompanyId', { '#s': 'status' }),
+    scanAll<Job>(TABLES.JOBS, '#s, publishedAt, acceptance, introductionFee, indicativeCost, warrantyCompanyId', { '#s': 'status' }),
     scanAll<Pick<User, 'userId' | 'firstName' | 'lastName' | 'role' | 'repairer'>>(TABLES.USERS, 'userId, firstName, lastName, #r, repairer', { '#r': 'role' }),
   ]);
+
+  // Per-company scope (TRX-31): only that company's tenant-stamped data.
+  if (companyId) {
+    cases = cases.filter((c) => c.warrantyCompanyId === companyId);
+    jobs = jobs.filter((j) => j.warrantyCompanyId === companyId);
+  }
 
   // ----- Funnel -----
   const notTriaged = new Set(['DRAFT', 'IMAGES_UPLOADED', 'TRIAGE_PENDING', 'TRIAGE_FAILED']);
@@ -124,6 +104,7 @@ async function miHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxy
     financial,
     leaderboards,
     repairerCount: users.filter((u) => u.role === 'REPAIRER').length,
+    ...(companyId ? { warrantyCompanyId: companyId } : {}),
     generatedAt: nowIso,
   });
 }

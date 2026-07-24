@@ -286,6 +286,8 @@ export class ApiStack extends cdk.Stack {
     addRoute('RepairerPreferencesGet', 'repairers/preferences.ts', apigw.HttpMethod.GET, '/api/v1/repairer/preferences');
     addRoute('RepairerPreferencesUpdate', 'repairers/preferences.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/preferences');
     addRoute('RepairerMyJobs', 'repairers/my-jobs.ts', apigw.HttpMethod.GET, '/api/v1/repairer/jobs');
+    // Repairer's own MI (TRX-67).
+    addRoute('RepairerMI', 'repairers/mi.ts', apigw.HttpMethod.GET, '/api/v1/repairer/mi', { timeout: cdk.Duration.seconds(30) });
     // Repairer self-manages their org's capability + coverage (TRX-18).
     addRoute('RepairerOrgGet', 'repairers/organisation.ts', apigw.HttpMethod.GET, '/api/v1/repairer/organisation');
     addRoute('RepairerOrgUpdate', 'repairers/organisation.ts', apigw.HttpMethod.PUT, '/api/v1/repairer/organisation');
