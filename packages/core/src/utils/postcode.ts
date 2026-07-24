@@ -92,12 +92,39 @@ export function postcodeProximity(a: string, b: string): number {
  * coverage prefix is a normalised area/district ("SW", "SE1", "M") — a job
  * matches when its postcode starts with the prefix. Empty prefixes never match
  * (an empty string would otherwise match everything).
+ *
+ * Note: this is a blunt `startsWith`, so a single-letter AREA like "M" also
+ * matches "ME"/"MK". For coverage matching prefer {@link postcodeCoveredBy},
+ * which is boundary-aware (area entries match by area, districts by outcode).
  */
 export function postcodeMatchesAny(postcode: string, coveragePrefixes: string[]): boolean {
   const n = normalisePostcode(postcode);
   return coveragePrefixes.some((p) => {
     const prefix = normalisePostcode(p);
     return prefix.length > 0 && n.startsWith(prefix);
+  });
+}
+
+/** A coverage entry is an AREA if it's just letters (e.g. "SW", "M"), else a
+ *  district / outward code (e.g. "SW1A", "SK6", "M1"). */
+function isAreaEntry(entry: string): boolean {
+  return /^[A-Z]{1,2}$/.test(entry);
+}
+
+/**
+ * Whether a job postcode is covered by any coverage entry, boundary-aware:
+ * an AREA entry ("SK") matches a job in that area (SK1, SK6, …) but NOT other
+ * areas that merely share the letter ("SKx" only, never "SE"/"ST"); a DISTRICT
+ * entry ("SK6", "SW1A") matches only that exact outward code. This is the
+ * district-first coverage test used by the matcher.
+ */
+export function postcodeCoveredBy(postcode: string, coverageEntries: string[]): boolean {
+  const outward = outwardCode(postcode);
+  const area = postcodeArea(postcode);
+  return coverageEntries.some((raw) => {
+    const e = normalisePostcode(raw);
+    if (!e) return false;
+    return isAreaEntry(e) ? area === e : outward === e;
   });
 }
 

@@ -25,16 +25,61 @@ function toggle(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 }
 
-/** Small searchable multi-select for UK postcode areas (coverage). */
-function PostcodeAreaSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+/** District (SW1A, SK6) or area (SK) — matches the district first, then area. */
+const COVERAGE_RE = /^[A-Z]{1,2}([0-9][A-Z0-9]?)?$/;
+
+/**
+ * District-first coverage selector: type a district (e.g. SK6) for precise
+ * coverage, or bulk-add a whole area (SK). Districts match the outward code
+ * exactly; a whole area covers all of its districts. Matching falls back from
+ * district → area (see core evaluateMatch).
+ */
+function CoverageSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   const [q, setQ] = useState('');
-  const filtered = useMemo(() => {
-    const query = q.trim().toUpperCase();
-    return query ? UK_POSTCODE_AREAS.filter((a) => a.startsWith(query)) : UK_POSTCODE_AREAS;
-  }, [q]);
+  const query = q.trim().toUpperCase().replace(/\s+/g, '');
+  const valid = COVERAGE_RE.test(query);
+  const areaPart = query.replace(/[0-9].*$/, '');
+  const areaSuggestions = useMemo(
+    () => (areaPart ? UK_POSTCODE_AREAS.filter((a) => a.startsWith(areaPart)).slice(0, 8) : []),
+    [areaPart],
+  );
+
+  const add = (raw: string) => {
+    const e = raw.trim().toUpperCase().replace(/\s+/g, '');
+    if (e && COVERAGE_RE.test(e) && !selected.includes(e)) onChange([...selected, e]);
+    setQ('');
+  };
+
   return (
     <div>
-      <Input label="Coverage postcodes" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type an area, e.g. BB, SW, M…" />
+      <Input
+        label="Coverage postcodes"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ',') && valid) { e.preventDefault(); add(query); }
+        }}
+        placeholder="Type a district (e.g. SK6) or area (SK), then Enter"
+      />
+      {query.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {valid && (
+            <button type="button" onClick={() => add(query)}
+              className="text-xs font-medium bg-emerald-600 text-white px-2.5 py-1 rounded hover:bg-emerald-700">
+              Add {query}
+            </button>
+          )}
+          {areaSuggestions.map((a) => (
+            <button key={a} type="button" onClick={() => add(a)}
+              className="text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded hover:bg-gray-200">
+              All {a}
+            </button>
+          ))}
+          {!valid && areaSuggestions.length === 0 && (
+            <span className="text-xs text-gray-400">Enter a valid postcode area or district.</span>
+          )}
+        </div>
+      )}
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {selected.map((a) => (
@@ -45,19 +90,10 @@ function PostcodeAreaSelect({ selected, onChange }: { selected: string[]; onChan
           ))}
         </div>
       )}
-      <div className="mt-3 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 grid grid-cols-4 sm:grid-cols-6 gap-1">
-        {filtered.map((a) => {
-          const on = selected.includes(a);
-          return (
-            <button key={a} type="button" onClick={() => onChange(toggle(selected, a))}
-              className={`text-sm px-2 py-1 rounded ${on ? 'bg-emerald-600 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
-              {a}
-            </button>
-          );
-        })}
-        {filtered.length === 0 && <p className="col-span-full text-sm text-gray-400 p-2">No matching areas.</p>}
-      </div>
-      <p className="text-xs text-gray-500 mt-2">Selecting an area (e.g. BB) covers all its postcodes (BB1, BB2, …).</p>
+      <p className="text-xs text-gray-500 mt-2">
+        Type a district (e.g. SK6) for precise coverage, or add a whole area (SK) to cover all its
+        districts. Jobs match your districts first, then widen to your area.
+      </p>
     </div>
   );
 }
@@ -200,7 +236,7 @@ export function OnboardingPage() {
 
             {step === 1 && (
               <Step title="Coverage area">
-                <PostcodeAreaSelect selected={coverageAreas} onChange={setCoverageAreas} />
+                <CoverageSelect selected={coverageAreas} onChange={setCoverageAreas} />
                 <SelectField label="Travel radius" value={String(radius)}
                   onChange={(v) => setRadius(Number(v))}
                   options={RADIUS.map((r) => r.label)}

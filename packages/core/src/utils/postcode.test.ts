@@ -7,6 +7,7 @@ import {
   postcodeMatchesAny,
   sharePostcodePrefix,
   haversineDistanceKm,
+  postcodeCoveredBy,
 } from './postcode';
 
 describe('normalisePostcode', () => {
@@ -81,6 +82,19 @@ describe('haversineDistanceKm', () => {
     const a = { lat: 51.5, lng: -0.1 };
     const b = { lat: 52.2, lng: -1.5 };
     expect(haversineDistanceKm(a, b)).toBeCloseTo(haversineDistanceKm(b, a), 6);
+  });
+});
+
+describe('postcodeCoveredBy', () => {
+  it('area entry matches its own area only (not look-alikes)', () => {
+    expect(postcodeCoveredBy('M1 1AE', ['M'])).toBe(true);
+    expect(postcodeCoveredBy('ME1 2AB', ['M'])).toBe(false); // Medway, not Manchester
+    expect(postcodeCoveredBy('MK1 1AA', ['M'])).toBe(false); // Milton Keynes
+  });
+  it('district entry matches only that exact outward code', () => {
+    expect(postcodeCoveredBy('SK6 5PJ', ['SK6'])).toBe(true);
+    expect(postcodeCoveredBy('SK7 1AA', ['SK6'])).toBe(false);
+    expect(postcodeCoveredBy('SK6 5PJ', ['SK6', 'SK7'])).toBe(true);
   });
 });
 

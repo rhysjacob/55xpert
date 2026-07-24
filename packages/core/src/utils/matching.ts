@@ -3,7 +3,7 @@ import type { RepairMethod } from '../types/triage';
 import type { VehicleSize } from '../types/vehicle';
 import type { RepairerCapability, RepairerStatus } from '../types/organisation';
 import { isRepairerMatchable } from '../types/organisation';
-import { postcodeMatchesAny, postcodeProximity, outwardCode, haversineDistanceKm } from './postcode';
+import { postcodeCoveredBy, postcodeArea, postcodeProximity, outwardCode, haversineDistanceKm } from './postcode';
 
 /** Miles→km, for repairer preferences expressed in miles. */
 const MILES_TO_KM = 1.60934;
@@ -91,17 +91,29 @@ export function evaluateMatch(job: JobMatchInput, target: RepairerMatchTarget): 
   const jobCoords = job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null;
   const distanceKm = baseCoords && jobCoords ? haversineDistanceKm(baseCoords, jobCoords) : undefined;
 
-  // Coverage — postcode areas first (primary), then a radius fallback by real
-  // distance, then the legacy prefix-proximity fallback when we have no coords.
+  // Coverage, in precedence order:
+  //   1. DISTRICT (exact) — the job's outward code is explicitly covered.
+  //   2. AREA fallback — the repairer covers a district in the job's area but
+  //      not the job's exact district (district-first, area second).
+  //   3. RADIUS fallback — within coverageRadiusKm by real distance (geo).
+  //   4. Legacy proximity fallback — prefix proxy until a postcode is geocoded.
+  const cov = cap.coverageAreas ?? [];
   const base = cap.basePostcode;
   const proximity = base ? postcodeProximity(base, job.postcode) : 0;
-  const exact = postcodeMatchesAny(job.postcode, cap.coverageAreas ?? []);
 
-  if (exact) {
+  // 1. District / explicit coverage (boundary-aware).
+  if (postcodeCoveredBy(job.postcode, cov)) {
     return { matched: true, exact: true, proximity: proximity || 1, ...(distanceKm != null ? { distanceKm } : {}) };
   }
 
-  // Radius fallback (geo): only when we have a real distance and a radius set.
+  // 2. Same-area fallback: a covered district shares the job's area.
+  const jobArea = postcodeArea(job.postcode);
+  const coversJobArea = cov.some((c) => postcodeArea(c) === jobArea);
+  if (coversJobArea) {
+    return { matched: true, exact: false, proximity: proximity || 0.5, ...(distanceKm != null ? { distanceKm } : {}) };
+  }
+
+  // 3. Radius fallback (geo): only when we have a real distance and a radius set.
   if (distanceKm != null && cap.coverageRadiusKm != null) {
     if (distanceKm <= cap.coverageRadiusKm) {
       return { matched: true, exact: false, proximity, distanceKm };
@@ -109,7 +121,7 @@ export function evaluateMatch(job: JobMatchInput, target: RepairerMatchTarget): 
     return miss('out-of-radius');
   }
 
-  // Legacy fallback: prefix proximity (used until a postcode is geocoded).
+  // 4. Legacy fallback: prefix proximity (used until a postcode is geocoded).
   if (base && proximity >= FALLBACK_PROXIMITY_THRESHOLD) {
     return { matched: true, exact: false, proximity };
   }
