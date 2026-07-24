@@ -8,7 +8,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/sign-in');
+    navigate('/');
   };
 
   return (
