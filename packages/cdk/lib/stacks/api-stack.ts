@@ -276,6 +276,8 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminOrgGet', 'admin/organisations.ts', apigw.HttpMethod.GET, '/api/v1/admin/organisations/{organisationId}');
     addRoute('AdminOrgUpdate', 'admin/organisations.ts', apigw.HttpMethod.PUT, '/api/v1/admin/organisations/{organisationId}');
     addRoute('AdminPushJob', 'admin/push-job.ts', apigw.HttpMethod.POST, '/api/v1/admin/jobs/{jobId}/push');
+    // One-off geocode backfill for existing orgs + open jobs (postcodes.io).
+    addRoute('AdminGeocodeBackfill', 'admin/geocode-backfill.ts', apigw.HttpMethod.POST, '/api/v1/admin/geocode-backfill', { timeout: cdk.Duration.seconds(120) });
 
     // Admin debug: AI model picker (read + set), gated by the SSM toggle.
     const modelConfigGet = addRoute('AdminModelConfigGet', 'admin/model-config.ts', apigw.HttpMethod.GET, '/api/v1/admin/model-config');

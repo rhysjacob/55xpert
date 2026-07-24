@@ -14,6 +14,8 @@ export function jobToMatchInput(job: Job): JobMatchInput {
       : {}),
     repairMethods: (job.repairMethods ?? []) as JobMatchInput['repairMethods'],
     ...(job.warrantyCompanyId ? { warrantyCompanyId: job.warrantyCompanyId } : {}),
+    ...(job.location?.lat != null ? { lat: job.location.lat } : {}),
+    ...(job.location?.lng != null ? { lng: job.location.lng } : {}),
   };
 }
 

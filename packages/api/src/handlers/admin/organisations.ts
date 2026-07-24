@@ -9,6 +9,7 @@ import { OrganisationsRepository, UsersRepository } from '@corexpert/db';
 import { NotFoundError, ConflictError } from '@corexpert/core';
 import type { RepairerOrganisation } from '@corexpert/core';
 import { capabilitySchema } from '../../lib/organisation-schema';
+import { geocodeCapabilityBase } from '../../lib/geocode';
 
 const orgs = new OrganisationsRepository();
 const users = new UsersRepository();
@@ -54,7 +55,7 @@ async function organisationsHandler(event: APIGatewayProxyEventV2): Promise<APIG
       organisationId: body.organisationId ?? randomUUID(),
       name: body.name,
       status: body.status ?? 'PENDING',
-      capability: body.capability ?? emptyCapability,
+      capability: body.capability ? await geocodeCapabilityBase(body.capability) : emptyCapability,
       ...(body.primaryContactUserId ? { primaryContactUserId: body.primaryContactUserId } : {}),
       createdAt: now,
       updatedAt: now,
@@ -81,7 +82,9 @@ async function organisationsHandler(event: APIGatewayProxyEventV2): Promise<APIG
   const body = parseBody(event, updateSchema);
   const existing = await orgs.getById(id);
   if (!existing) throw new NotFoundError('Organisation', id);
-  await orgs.update(id, body);
+  // Re-geocode the base whenever capability (which carries basePostcode) changes.
+  const patch = body.capability ? { ...body, capability: await geocodeCapabilityBase(body.capability) } : body;
+  await orgs.update(id, patch);
 
   // Enable/disable cascade (TRX-22): a status change flows to every member's
   // login. ACTIVE re-enables; SUSPENDED/DISABLED/PENDING disables — so a

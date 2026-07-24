@@ -54,6 +54,7 @@ async function listHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
       // A pushed-but-unmatched job still ranks, treated as an exact hit.
       exact: result.matched ? result.exact : true,
       proximity: result.matched ? result.proximity : 1,
+      ...(result.distanceKm != null ? { distanceKm: result.distanceKm } : {}),
     };
   };
 
@@ -62,15 +63,17 @@ async function listHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
 
   // Open jobs first (ranked), then the greyed-out taken ones.
   matchedOpen.sort((a, b) => compareByMatch(
-    { exact: a.exact, proximity: a.proximity, publishedAt: a.job.publishedAt },
-    { exact: b.exact, proximity: b.proximity, publishedAt: b.job.publishedAt },
+    { exact: a.exact, proximity: a.proximity, distanceKm: a.distanceKm, publishedAt: a.job.publishedAt },
+    { exact: b.exact, proximity: b.proximity, distanceKm: b.distanceKm, publishedAt: b.job.publishedAt },
   ));
 
-  const items = [...matchedOpen, ...matchedTaken].slice(0, limit).map(({ job, taken: isTaken, exact }) => ({
+  const items = [...matchedOpen, ...matchedTaken].slice(0, limit).map(({ job, taken: isTaken, exact, distanceKm }) => ({
     jobId: job.jobId,
     status: job.status,
     taken: isTaken,
     matchType: exact ? 'exact' : 'nearby',
+    // Rounded miles for display when the job is geocoded.
+    ...(distanceKm != null ? { distanceMiles: Math.round((distanceKm / 1.60934) * 10) / 10 } : {}),
     publishedAt: job.publishedAt,
     expiresAt: job.expiresAt,
     introductionFee: job.introductionFee,
