@@ -13,6 +13,7 @@ import { AvailableJobsPage } from './pages/AvailableJobs';
 import { JobDetailPage } from './pages/JobDetail';
 import { JobDetailsPage } from './pages/JobDetails';
 import { MyJobsPage } from './pages/MyJobs';
+import { MIPage } from './pages/MI';
 import { ProfilePage } from './pages/Profile';
 import { PreferencesPage } from './pages/Preferences';
 import { BillingPage } from './pages/Billing';
@@ -61,6 +62,7 @@ export function App() {
                 <Route path="/jobs/:jobId" element={<JobDetailPage />} />
                 <Route path="/jobs/:jobId/details" element={<JobDetailsPage />} />
                 <Route path="/my-jobs" element={<MyJobsPage />} />
+                <Route path="/mi" element={<MIPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/preferences" element={<PreferencesPage />} />
                 <Route path="/billing" element={<BillingPage />} />
