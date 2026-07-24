@@ -64,7 +64,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     signIn: async (input) => {
-      await amplifySignIn(input);
+      try {
+        await amplifySignIn(input);
+      } catch (err) {
+        // Amplify refuses signIn when a stale session lingers ("There is already
+        // a signed in user"). Clear it and sign in fresh with the entered creds.
+        if (err instanceof Error && err.name === 'UserAlreadyAuthenticatedException') {
+          await amplifySignOut();
+          await amplifySignIn(input);
+        } else {
+          throw err;
+        }
+      }
       await checkAuth();
     },
     signUp: async (input) => {
