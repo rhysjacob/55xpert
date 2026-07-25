@@ -6,6 +6,7 @@ import { TABLES } from '@corexpert/db';
 import { postcodeArea, outwardCode, isRepairerMatchable } from '@corexpert/core';
 import type { Job, User, RepairerOrganisation } from '@corexpert/core';
 import { scanAll } from '../../lib/mi-util';
+import { geocodeOutcode } from '../../lib/geocode';
 
 /**
  * Coverage heatmap data (TRX-30): job DEMAND vs repairer SUPPLY per UK postcode
@@ -75,10 +76,24 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
     }
   }
 
-  const areas = [...new Set([...demand.keys(), ...supply.keys()])].map((area) => {
+  const areaKeys = [...new Set([...demand.keys(), ...supply.keys()])];
+  // Geocode each area's centroid (best-effort) so the map can plot the actual
+  // covered/uncovered postcode areas, not just repairers' travel-radius circles.
+  // A postcode AREA (e.g. "SK") isn't a valid outcode, so use its "1" district
+  // (e.g. "SK1") as a representative centroid. Cached per container.
+  const centroids = new Map<string, { lat: number; lng: number }>();
+  await Promise.all(
+    areaKeys.map(async (area) => {
+      const c = (await geocodeOutcode(`${area}1`)) ?? (await geocodeOutcode(area));
+      if (c) centroids.set(area, c);
+    }),
+  );
+
+  const areas = areaKeys.map((area) => {
     const d = demand.get(area) ?? 0;
     const s = supply.get(area) ?? 0;
-    return { area, demand: d, supply: s, uncovered: d > 0 && s === 0 };
+    const c = centroids.get(area);
+    return { area, demand: d, supply: s, uncovered: d > 0 && s === 0, ...(c ? { lat: c.lat, lng: c.lng } : {}) };
   }).sort((a, b) => b.demand - a.demand || a.supply - b.supply || a.area.localeCompare(b.area));
 
   return ok({

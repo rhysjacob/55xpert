@@ -8,6 +8,7 @@ import { ok } from '../../lib/response';
 import { logger } from '../../lib/logger';
 import { UsersRepository, OrganisationsRepository } from '@corexpert/db';
 import { NotFoundError, normalisePostcode } from '@corexpert/core';
+import { geocodePostcode } from '../../lib/geocode';
 import type { RepairerOrganisation, RepairerOnboarding, RepairerCapability } from '@corexpert/core';
 
 const users = new UsersRepository();
@@ -35,6 +36,8 @@ const onboardingSchema = z.object({
   // Section B — coverage
   coverageAreas: z.array(z.string().min(1).max(8)).min(1).max(200),
   travelRadiusMiles: z.number().int().min(0).max(100).optional(),
+  /** Base / business postcode — geocoded to anchor the travel radius + map marker. */
+  basePostcode: z.string().min(1).max(10).optional(),
   // Section C — capabilities
   services: z.array(z.enum(['SMART', 'BODYSHOP', 'ALLOY', 'GLASS', 'EV', 'ADAS', 'COSMETIC', 'STRUCTURAL', 'MOBILE', 'PAINT'])).max(20),
   // Section D — operational
@@ -86,11 +89,15 @@ async function onboardingHandler(event: APIGatewayProxyEventV2): Promise<APIGate
 
   // Coverage + radius + services flow onto the matching capability.
   const coverageAreas = [...new Set(body.coverageAreas.map(normalisePostcode).filter(Boolean))];
+  // Geocode the base postcode (best-effort) to anchor the radius + map marker.
+  const baseCoords = body.basePostcode ? await geocodePostcode(body.basePostcode) : null;
   const capability: RepairerCapability = {
     ...org.capability,
     coverageAreas,
     services: body.services,
     ...(body.travelRadiusMiles ? { coverageRadiusKm: Math.round(body.travelRadiusMiles * MILES_TO_KM) } : {}),
+    ...(body.basePostcode ? { basePostcode: normalisePostcode(body.basePostcode) } : {}),
+    ...(baseCoords ? { baseLat: baseCoords.lat, baseLng: baseCoords.lng } : {}),
   };
 
   const onboarding: RepairerOnboarding = {
