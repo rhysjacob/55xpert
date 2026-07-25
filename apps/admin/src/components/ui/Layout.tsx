@@ -23,6 +23,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <div className="hidden sm:flex gap-4">
                 <Link to="/" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
                 <Link to="/mi" className="text-sm text-gray-600 hover:text-gray-900">MI</Link>
+                <Link to="/coverage" className="text-sm text-gray-600 hover:text-gray-900">Coverage</Link>
                 <Link to="/cases" className="text-sm text-gray-600 hover:text-gray-900">Cases</Link>
                 <Link to="/jobs" className="text-sm text-gray-600 hover:text-gray-900">Jobs</Link>
                 <Link to="/repairers" className="text-sm text-gray-600 hover:text-gray-900">Repairers</Link>
