@@ -61,24 +61,6 @@ export async function geocodePostcode(postcode: string): Promise<LatLng | null> 
   return coords;
 }
 
-// Outcode (postcode district, e.g. "SK6") centroids — cached separately.
-const outcodeCache = new Map<string, LatLng | null>();
-
-/**
- * Centroid of a postcode outcode/district (e.g. "SK6", "M1") via postcodes.io.
- * Used to place a postcode AREA on the coverage map — pass a representative
- * outcode (e.g. area "SK" → "SK1"). Best-effort; cached per container.
- */
-export async function geocodeOutcode(outcode: string): Promise<LatLng | null> {
-  const key = normalisePostcode(outcode);
-  if (!key) return null;
-  if (outcodeCache.has(key)) return outcodeCache.get(key) ?? null;
-  const body = (await fetchJson(`${BASE}/outcodes/${encodeURIComponent(key)}`)) as { result?: PostcodeResult } | null;
-  const coords = toLatLng(body?.result);
-  outcodeCache.set(key, coords);
-  return coords;
-}
-
 /**
  * Populate a capability's base coordinates from its basePostcode (best-effort).
  * Returns the capability unchanged when there's no postcode or geocoding fails —
