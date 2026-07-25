@@ -53,8 +53,10 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
       const org = orgById.get(u.organisationId);
       if (!org || !isRepairerMatchable(org.status)) continue;
       coverage = org.capability?.coverageAreas ?? [];
-      baseLat = org.capability?.baseLat;
-      baseLng = org.capability?.baseLng;
+      // Prefer the org's geocoded base; fall back to the member's own profile
+      // coords (onboarding captures coverage areas, not always a base postcode).
+      baseLat = org.capability?.baseLat ?? u.repairer?.lat;
+      baseLng = org.capability?.baseLng ?? u.repairer?.lng;
       radiusKm = org.capability?.coverageRadiusKm;
       name = org.name;
     } else {
