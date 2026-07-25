@@ -24,17 +24,15 @@ async function miHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxy
   const companyId = getQueryParam(event, 'warrantyCompanyId');
 
   const nowIso = new Date().toISOString();
-  let [cases, jobs, users] = await Promise.all([
+  const [allCases, allJobs, users] = await Promise.all([
     scanAll<Pick<Case, 'status' | 'createdAt' | 'warrantyCompanyId'>>(TABLES.CASES, '#s, createdAt, warrantyCompanyId', { '#s': 'status' }),
     scanAll<Job>(TABLES.JOBS, '#s, publishedAt, acceptance, introductionFee, indicativeCost, warrantyCompanyId', { '#s': 'status' }),
     scanAll<Pick<User, 'userId' | 'firstName' | 'lastName' | 'role' | 'repairer'>>(TABLES.USERS, 'userId, firstName, lastName, #r, repairer', { '#r': 'role' }),
   ]);
 
   // Per-company scope (TRX-31): only that company's tenant-stamped data.
-  if (companyId) {
-    cases = cases.filter((c) => c.warrantyCompanyId === companyId);
-    jobs = jobs.filter((j) => j.warrantyCompanyId === companyId);
-  }
+  const cases = companyId ? allCases.filter((c) => c.warrantyCompanyId === companyId) : allCases;
+  const jobs = companyId ? allJobs.filter((j) => j.warrantyCompanyId === companyId) : allJobs;
 
   // ----- Funnel -----
   const notTriaged = new Set(['DRAFT', 'IMAGES_UPLOADED', 'TRIAGE_PENDING', 'TRIAGE_FAILED']);
