@@ -21,7 +21,7 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
   const [jobs, users, orgs] = await Promise.all([
     scanAll<Pick<Job, 'location'>>(TABLES.JOBS, '#loc', { '#loc': 'location' }),
     scanAll<Pick<User, 'userId' | 'role' | 'organisationId' | 'isActive' | 'repairer'>>(TABLES.USERS, 'userId, #r, organisationId, isActive, repairer', { '#r': 'role' }),
-    scanAll<Pick<RepairerOrganisation, 'organisationId' | 'status' | 'capability'>>(TABLES.ORGANISATIONS, 'organisationId, #s, capability', { '#s': 'status' }),
+    scanAll<Pick<RepairerOrganisation, 'organisationId' | 'name' | 'status' | 'capability'>>(TABLES.ORGANISATIONS, 'organisationId, #n, #s, capability', { '#n': 'name', '#s': 'status' }),
   ]);
   const orgById = new Map(orgs.map((o) => [o.organisationId, o]));
 
@@ -29,10 +29,15 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
   const supply = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
 
-  // Demand — jobs by area.
+  // Map points: geocoded job locations (heat layer) + repairer bases (markers).
+  const jobPoints: [number, number][] = [];
+  const repairerPoints: { lat: number; lng: number; name: string; radiusKm?: number }[] = [];
+
+  // Demand — jobs by area (+ coords for the heat layer).
   for (const j of jobs) {
     const pc = j.location?.postcode;
     if (pc) bump(demand, postcodeArea(pc));
+    if (j.location?.lat != null && j.location.lng != null) jobPoints.push([j.location.lat, j.location.lng]);
   }
 
   // Supply — ACTIVE repairers, counted once per area they cover.
@@ -40,18 +45,32 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
   for (const u of users) {
     if (u.role !== 'REPAIRER') continue;
     let coverage: string[] = [];
+    let baseLat: number | undefined;
+    let baseLng: number | undefined;
+    let radiusKm: number | undefined;
+    let name = 'Repairer';
     if (u.organisationId) {
       const org = orgById.get(u.organisationId);
       if (!org || !isRepairerMatchable(org.status)) continue;
       coverage = org.capability?.coverageAreas ?? [];
+      baseLat = org.capability?.baseLat;
+      baseLng = org.capability?.baseLng;
+      radiusKm = org.capability?.coverageRadiusKm;
+      name = org.name;
     } else {
       // Legacy standalone: matchable when active + verified; covers its own outcode.
       if (!(u.isActive && u.repairer?.isVerified)) continue;
       coverage = u.repairer?.postcode ? [outwardCode(u.repairer.postcode)] : [];
+      baseLat = u.repairer?.lat;
+      baseLng = u.repairer?.lng;
+      name = u.repairer?.businessName ?? name;
     }
     activeRepairers += 1;
     const areas = new Set(coverage.map(postcodeArea).filter(Boolean));
     for (const a of areas) bump(supply, a);
+    if (baseLat != null && baseLng != null) {
+      repairerPoints.push({ lat: baseLat, lng: baseLng, name, ...(radiusKm != null ? { radiusKm } : {}) });
+    }
   }
 
   const areas = [...new Set([...demand.keys(), ...supply.keys()])].map((area) => {
@@ -62,6 +81,7 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
 
   return ok({
     areas,
+    points: { jobs: jobPoints, repairers: repairerPoints },
     totals: {
       areasWithDemand: areas.filter((a) => a.demand > 0).length,
       uncoveredAreas: areas.filter((a) => a.uncovered).length,
