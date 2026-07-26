@@ -137,6 +137,7 @@ export function OnboardingPage() {
   // Section B
   const [coverageAreas, setCoverageAreas] = useState<string[]>([]);
   const [radius, setRadius] = useState<number>(0);
+  const [basePostcode, setBasePostcode] = useState('');
   // Section C
   const [services, setServices] = useState<string[]>([]);
   // Section D
@@ -166,6 +167,7 @@ export function OnboardingPage() {
         businessType,
         coverageAreas,
         travelRadiusMiles: radius > 0 ? radius : undefined,
+        basePostcode: basePostcode.trim() || undefined,
         services,
         preferredJobTypes,
         dailyCapacity,
@@ -236,6 +238,9 @@ export function OnboardingPage() {
 
             {step === 1 && (
               <Step title="Coverage area">
+                <Input label="Base / business postcode" value={basePostcode} onChange={(e) => setBasePostcode(e.target.value)}
+                  placeholder="e.g. SK6 5PJ" />
+                <p className="-mt-2 text-xs text-gray-500">Where you're based — anchors your travel radius and puts you on the coverage map.</p>
                 <CoverageSelect selected={coverageAreas} onChange={setCoverageAreas} />
                 <SelectField label="Travel radius" value={String(radius)}
                   onChange={(v) => setRadius(Number(v))}
