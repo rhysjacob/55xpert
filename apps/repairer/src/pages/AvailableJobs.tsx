@@ -3,6 +3,9 @@ import { Link } from 'react-router';
 import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody } from '../components/ui/Card';
+import { InfoTip } from '../components/ui/InfoTip';
+import { useNow, formatDuration } from '../lib/time';
+import { INDICATIVE_COST_DISCLAIMER } from '../lib/copy';
 
 interface Job {
   jobId: string;
@@ -24,15 +27,28 @@ function formatPence(pence: number): string {
   return `\u00A3${(pence / 100).toFixed(2)}`;
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const hours = Math.floor(diff / 3_600_000);
-  if (hours < 1) return 'Just now';
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+/** Live "how long a job has been live" timer + expiry countdown (TRX-54). */
+function LiveTimer({ publishedAt, expiresAt, now }: { publishedAt: string; expiresAt: string; now: number }) {
+  const liveFor = formatDuration(now - new Date(publishedAt).getTime());
+  const msLeft = new Date(expiresAt).getTime() - now;
+  const expired = msLeft <= 0;
+  // Flag urgency in the last two hours so a fastest-finger repairer moves.
+  const urgent = !expired && msLeft < 2 * 3_600_000;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="inline-flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
+        Live for {liveFor}
+      </span>
+      <span className={expired ? 'text-gray-400' : urgent ? 'text-red-600 font-medium' : 'text-gray-500'}>
+        \u00B7 {expired ? 'Expiring' : `Expires in ${formatDuration(msLeft)}`}
+      </span>
+    </span>
+  );
 }
 
 export function AvailableJobsPage() {
+  const now = useNow();
   const { data, isLoading } = useQuery({
     queryKey: ['available-jobs'],
     queryFn: () => api.get<{ items: Job[] }>('/api/v1/jobs'),
@@ -91,7 +107,10 @@ export function AvailableJobsPage() {
                     </div>
                     <div className="text-right ml-4">
                       <p className="text-lg font-bold text-gray-900">{formatPence(job.indicativeCost)}</p>
-                      <p className="text-xs text-gray-500">Indicative cost</p>
+                      <p className="text-xs text-gray-500">
+                        Indicative cost
+                        <InfoTip text={INDICATIVE_COST_DISCLAIMER} />
+                      </p>
                       <p className="text-xs text-emerald-600 mt-1">
                         Fee: {formatPence(job.introductionFee)}
                       </p>
@@ -99,7 +118,7 @@ export function AvailableJobsPage() {
                   </div>
                   <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
                     <span>{job.location.postcode}</span>
-                    <span>Posted {timeAgo(job.publishedAt)}</span>
+                    <LiveTimer publishedAt={job.publishedAt} expiresAt={job.expiresAt} now={now} />
                   </div>
                 </CardBody>
               </Card>
