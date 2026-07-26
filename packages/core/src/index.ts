@@ -12,6 +12,7 @@ export * from './types/api';
 export * from './types/organisation';
 export * from './types/ingestion';
 export * from './types/lead';
+export * from './types/complaint';
 
 // Constants
 export * from './constants/panels';

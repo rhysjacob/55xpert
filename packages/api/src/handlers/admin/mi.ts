@@ -4,7 +4,7 @@ import { getAuthContext, requireRole } from '../../middleware/auth';
 import { getQueryParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { TABLES } from '@corexpert/db';
-import type { Case, Job, User } from '@corexpert/core';
+import type { Case, Job, User, Complaint } from '@corexpert/core';
 import { scanAll, monthKey, hoursBetween, last12Months } from '../../lib/mi-util';
 
 /**
@@ -24,15 +24,17 @@ async function miHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxy
   const companyId = getQueryParam(event, 'warrantyCompanyId');
 
   const nowIso = new Date().toISOString();
-  const [allCases, allJobs, users] = await Promise.all([
+  const [allCases, allJobs, users, allComplaints] = await Promise.all([
     scanAll<Pick<Case, 'status' | 'createdAt' | 'warrantyCompanyId'>>(TABLES.CASES, '#s, createdAt, warrantyCompanyId', { '#s': 'status' }),
     scanAll<Job>(TABLES.JOBS, '#s, publishedAt, acceptance, introductionFee, indicativeCost, warrantyCompanyId', { '#s': 'status' }),
-    scanAll<Pick<User, 'userId' | 'firstName' | 'lastName' | 'role' | 'repairer'>>(TABLES.USERS, 'userId, firstName, lastName, #r, repairer', { '#r': 'role' }),
+    scanAll<Pick<User, 'userId' | 'firstName' | 'lastName' | 'role' | 'repairer' | 'organisationId'>>(TABLES.USERS, 'userId, firstName, lastName, #r, repairer, organisationId', { '#r': 'role' }),
+    scanAll<Complaint>(TABLES.COMPLAINTS, 'complaintId, organisationId, repairerName, #st, warrantyCompanyId', { '#st': 'status' }),
   ]);
 
   // Per-company scope (TRX-31): only that company's tenant-stamped data.
   const cases = companyId ? allCases.filter((c) => c.warrantyCompanyId === companyId) : allCases;
   const jobs = companyId ? allJobs.filter((j) => j.warrantyCompanyId === companyId) : allJobs;
+  const complaints = companyId ? allComplaints.filter((c) => c.warrantyCompanyId === companyId) : allComplaints;
 
   // ----- Funnel -----
   const notTriaged = new Set(['DRAFT', 'IMAGES_UPLOADED', 'TRIAGE_PENDING', 'TRIAGE_FAILED']);
@@ -95,12 +97,57 @@ async function miHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxy
     platformFeeEarnedPence: jobs.filter((j) => !!j.acceptance).reduce((s, j) => s + (j.introductionFee ?? 0), 0),
   };
 
+  // ----- Complaints vs volume (TRX-27) -----
+  // Complaints are logged against an ORG; job volume is per accepting user, so
+  // map user → org to attribute accepted jobs to the same org as its complaints.
+  const userToOrg = new Map(users.filter((u) => u.organisationId).map((u) => [u.userId, u.organisationId!]));
+  const acceptedByOrg = new Map<string, number>();
+  for (const j of jobs) {
+    const uid = j.acceptance?.repairerId;
+    const org = uid ? userToOrg.get(uid) : undefined;
+    if (org) acceptedByOrg.set(org, (acceptedByOrg.get(org) ?? 0) + 1);
+  }
+
+  const perOrg = new Map<string, { name: string; total: number; justified: number; unjustified: number; open: number }>();
+  for (const c of complaints) {
+    const row = perOrg.get(c.organisationId) ?? { name: c.repairerName || c.organisationId.slice(0, 8), total: 0, justified: 0, unjustified: 0, open: 0 };
+    row.total += 1;
+    if (c.status === 'JUSTIFIED') row.justified += 1;
+    else if (c.status === 'UNJUSTIFIED') row.unjustified += 1;
+    else row.open += 1;
+    perOrg.set(c.organisationId, row);
+  }
+
+  const totalAccepted = jobs.filter((j) => !!j.acceptance).length;
+  const justifiedTotal = complaints.filter((c) => c.status === 'JUSTIFIED').length;
+  const complaintsByRepairer = [...perOrg.entries()].map(([organisationId, r]) => ({
+    organisationId,
+    name: r.name,
+    complaints: r.total,
+    justified: r.justified,
+    unjustified: r.unjustified,
+    open: r.open,
+    accepted: acceptedByOrg.get(organisationId) ?? 0,
+  })).sort((a, b) => b.justified - a.justified || b.complaints - a.complaints);
+
+  const complaintsMi = {
+    total: complaints.length,
+    justified: justifiedTotal,
+    unjustified: complaints.filter((c) => c.status === 'UNJUSTIFIED').length,
+    open: complaints.filter((c) => c.status === 'OPEN').length,
+    acceptedJobs: totalAccepted,
+    // Justified complaints as a % of accepted jobs — the headline quality signal.
+    justifiedRatePct: totalAccepted ? Math.round((justifiedTotal / totalAccepted) * 1000) / 10 : null,
+    byRepairer: complaintsByRepairer,
+  };
+
   return ok({
     funnel,
     trend,
     timeToAccept: { avgHours: ttaCount ? Math.round((ttaSum / ttaCount) * 10) / 10 : null, sampleSize: ttaCount },
     financial,
     leaderboards,
+    complaints: complaintsMi,
     repairerCount: users.filter((u) => u.role === 'REPAIRER').length,
     ...(companyId ? { warrantyCompanyId: companyId } : {}),
     generatedAt: nowIso,

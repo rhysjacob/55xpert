@@ -18,6 +18,7 @@ export class DatabaseStack extends cdk.Stack {
   public readonly networkLinksTable: dynamodb.Table;
   public readonly ingestionsTable: dynamodb.Table;
   public readonly leadsTable: dynamodb.Table;
+  public readonly complaintsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -186,6 +187,21 @@ export class DatabaseStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: removal,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+
+    // Complaints against repairers (TRX-24). Small; scanned for the admin list
+    // + MI. Org GSI lists one repairer's complaints newest-first.
+    this.complaintsTable = new dynamodb.Table(this, 'ComplaintsTable', {
+      tableName: `corexpert-${config.stage}-complaints`,
+      partitionKey: { name: 'complaintId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+    this.complaintsTable.addGlobalSecondaryIndex({
+      indexName: 'organisationId-createdAt-index',
+      partitionKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
     });
   }
 }

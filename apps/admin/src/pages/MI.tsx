@@ -13,6 +13,15 @@ interface MI {
   timeToAccept: { avgHours: number | null; sampleSize: number };
   financial: { estimatedRepairValuePence: number; platformFeeEarnedPence: number };
   leaderboards: { byVolume: LeaderRow[]; bySpeed: LeaderRow[] };
+  complaints: {
+    total: number;
+    justified: number;
+    unjustified: number;
+    open: number;
+    acceptedJobs: number;
+    justifiedRatePct: number | null;
+    byRepairer: { organisationId: string; name: string; complaints: number; justified: number; unjustified: number; open: number; accepted: number }[];
+  };
   repairerCount: number;
   generatedAt: string;
 }
@@ -142,6 +151,52 @@ export function MIPage() {
               <Leaderboard title="Most jobs accepted" rows={data.leaderboards.byVolume} metric="accepted" />
               <Leaderboard title="Fastest to accept (≥2 jobs)" rows={data.leaderboards.bySpeed} metric="avgHours" />
             </div>
+          </section>
+
+          {/* Complaints vs volume (TRX-27) */}
+          <section>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Complaints vs job volume</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4">
+              <Stat label="Complaints" value={data.complaints.total} />
+              <Stat label="Justified" value={data.complaints.justified} tone="text-red-600" />
+              <Stat label="Unjustified" value={data.complaints.unjustified} tone="text-gray-500" />
+              <Stat label="Open" value={data.complaints.open} tone="text-amber-600" />
+              <Stat label="Justified per accepted job" value={data.complaints.justifiedRatePct == null ? '—' : `${data.complaints.justifiedRatePct}%`} tone="text-indigo-600" />
+            </div>
+            <Card>
+              <CardBody>
+                {data.complaints.byRepairer.length === 0 ? (
+                  <p className="text-sm text-gray-400">No complaints logged{companyId ? ' for this company' : ''}.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-400 border-b border-gray-100">
+                          <th className="py-2 font-medium">Repairer</th>
+                          <th className="py-2 font-medium text-right">Accepted jobs</th>
+                          <th className="py-2 font-medium text-right">Complaints</th>
+                          <th className="py-2 font-medium text-right">Justified</th>
+                          <th className="py-2 font-medium text-right">Unjustified</th>
+                          <th className="py-2 font-medium text-right">Justified rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.complaints.byRepairer.map((r) => (
+                          <tr key={r.organisationId} className="border-b border-gray-50 last:border-0">
+                            <td className="py-2 text-gray-800">{r.name}</td>
+                            <td className="py-2 text-right text-gray-600">{r.accepted}</td>
+                            <td className="py-2 text-right text-gray-900 font-medium">{r.complaints}</td>
+                            <td className="py-2 text-right text-red-600">{r.justified}</td>
+                            <td className="py-2 text-right text-gray-500">{r.unjustified}</td>
+                            <td className="py-2 text-right text-gray-700">{r.accepted > 0 ? `${Math.round((r.justified / r.accepted) * 1000) / 10}%` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
           </section>
 
           <p className="text-xs text-gray-400">Generated {new Date(data.generatedAt).toLocaleString('en-GB')}</p>

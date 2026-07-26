@@ -11,6 +11,7 @@ export const TABLES = {
   NETWORK_LINKS: `corexpert-${STAGE}-network-links`,
   INGESTIONS: `corexpert-${STAGE}-ingestions`,
   LEADS: `corexpert-${STAGE}-leads`,
+  COMPLAINTS: `corexpert-${STAGE}-complaints`,
 } as const;
 
 export const GSI = {
@@ -41,4 +42,7 @@ export const GSI = {
 
   // Corrections table
   CORRECTIONS_CASE: 'caseId-createdAt-index',
+
+  // Complaints table (TRX-24) — list an org's complaints, newest first.
+  COMPLAINTS_ORG: 'organisationId-createdAt-index',
 } as const;
