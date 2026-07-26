@@ -10,4 +10,5 @@ export { OrganisationsRepository } from './repositories/organisations';
 export { NetworkLinksRepository } from './repositories/network-links';
 export { IngestionsRepository } from './repositories/ingestions';
 export { LeadsRepository } from './repositories/leads';
+export { ComplaintsRepository } from './repositories/complaints';
 export { GSI } from './tables';

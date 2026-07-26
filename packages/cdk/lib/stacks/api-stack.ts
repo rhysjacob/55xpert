@@ -29,6 +29,7 @@ export interface ApiStackProps extends cdk.StackProps {
   networkLinksTable: dynamodb.ITable;
   ingestionsTable: dynamodb.ITable;
   leadsTable: dynamodb.ITable;
+  complaintsTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -69,7 +70,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable, props.leadsTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable, props.leadsTable, props.complaintsTable];
 
     // App domain-event bus. Producers emit (e.g. job.published); decoupled
     // consumers (notifications) subscribe via rules — nothing sends email/etc
@@ -313,6 +314,11 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}');
     addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard');
     addRoute('AdminLeads', 'admin/leads.ts', apigw.HttpMethod.GET, '/api/v1/admin/leads');
+
+    // Complaints log (TRX-24).
+    addRoute('AdminComplaintsList', 'admin/complaints-list.ts', apigw.HttpMethod.GET, '/api/v1/admin/complaints');
+    addRoute('AdminComplaintsCreate', 'admin/complaints-create.ts', apigw.HttpMethod.POST, '/api/v1/admin/complaints');
+    addRoute('AdminComplaintsUpdate', 'admin/complaints-update.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/complaints/{complaintId}');
     // Portfolio MI: funnel, trend, time-to-accept, financials, leaderboards (TRX-25/26/28/29).
     addRoute('AdminMI', 'admin/mi.ts', apigw.HttpMethod.GET, '/api/v1/admin/mi', { timeout: cdk.Duration.seconds(30) });
     // Coverage heatmap: job demand vs repairer coverage per area (TRX-30).
