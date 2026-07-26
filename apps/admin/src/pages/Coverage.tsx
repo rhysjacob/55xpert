@@ -18,7 +18,7 @@ interface Coverage {
   areas: AreaRow[];
   districts: DistrictMaps;
   points: { jobs: [number, number][]; repairers: RepairerPoint[] };
-  totals: { areasWithDemand: number; uncoveredAreas: number; totalDemand: number; activeRepairers: number };
+  totals: { districtsWithDemand: number; uncoveredDistricts: number; uncoveredDistrictList: string[]; totalDemand: number; activeRepairers: number };
   generatedAt: string;
 }
 
@@ -156,8 +156,8 @@ export function CoveragePage() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Card><CardBody><p className="text-2xl font-bold text-indigo-600">{data.totals.totalDemand}</p><p className="text-sm text-gray-500">Total job demand</p></CardBody></Card>
-            <Card><CardBody><p className="text-2xl font-bold text-gray-900">{data.totals.areasWithDemand}</p><p className="text-sm text-gray-500">Areas with demand</p></CardBody></Card>
-            <Card><CardBody><p className="text-2xl font-bold text-red-600">{data.totals.uncoveredAreas}</p><p className="text-sm text-gray-500">Uncovered areas</p></CardBody></Card>
+            <Card><CardBody><p className="text-2xl font-bold text-gray-900">{data.totals.districtsWithDemand}</p><p className="text-sm text-gray-500">Districts with demand</p></CardBody></Card>
+            <Card><CardBody><p className="text-2xl font-bold text-red-600">{data.totals.uncoveredDistricts}</p><p className="text-sm text-gray-500" title={data.totals.uncoveredDistrictList.join(', ')}>Uncovered districts <span className="text-gray-400">(with demand)</span></p></CardBody></Card>
             <Card><CardBody><p className="text-2xl font-bold text-emerald-600">{data.totals.activeRepairers}</p><p className="text-sm text-gray-500">Active repairers</p></CardBody></Card>
           </div>
 

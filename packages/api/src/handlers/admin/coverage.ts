@@ -102,10 +102,20 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
     }
   }
 
+  // District-level supply: covered if the district itself is covered OR its whole
+  // area is wholesale-covered. This is the honest view the map draws.
+  const supplyOfDistrict = (dcode: string) => (districtSupply.get(dcode) ?? 0) + (areaSupply.get(postcodeArea(dcode)) ?? 0);
+  // Uncovered = a DISTRICT with demand and no coverage (the red polygons). Counted
+  // at district level so this matches the map — an area like SK can be "covered"
+  // overall (SK4–7) yet still contain an uncovered district (SK1).
+  const uncoveredDistricts = [...demandByDistrict.entries()].filter(([dcode, n]) => n > 0 && supplyOfDistrict(dcode) === 0).map(([dcode]) => dcode).sort();
+
   const areas = [...new Set([...demand.keys(), ...supply.keys()])].map((area) => {
     const d = demand.get(area) ?? 0;
     const s = supply.get(area) ?? 0;
-    return { area, demand: d, supply: s, uncovered: d > 0 && s === 0 };
+    // An area is flagged uncovered when it holds at least one uncovered-demand district.
+    const uncovered = uncoveredDistricts.some((dc) => postcodeArea(dc) === area);
+    return { area, demand: d, supply: s, uncovered };
   }).sort((a, b) => b.demand - a.demand || a.supply - b.supply || a.area.localeCompare(b.area));
 
   return ok({
@@ -119,8 +129,11 @@ async function coverageHandler(event: APIGatewayProxyEventV2): Promise<APIGatewa
     },
     points: { jobs: jobPoints, repairers: repairerPoints },
     totals: {
-      areasWithDemand: areas.filter((a) => a.demand > 0).length,
-      uncoveredAreas: areas.filter((a) => a.uncovered).length,
+      // All district-level so the tiles agree with the map's granularity.
+      districtsWithDemand: [...demandByDistrict.values()].filter((n) => n > 0).length,
+      // Jobs sitting in a district nobody covers (the red polygons).
+      uncoveredDistricts: uncoveredDistricts.length,
+      uncoveredDistrictList: uncoveredDistricts,
       totalDemand: [...demand.values()].reduce((s, n) => s + n, 0),
       activeRepairers,
     },
