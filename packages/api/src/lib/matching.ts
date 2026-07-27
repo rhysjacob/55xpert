@@ -7,22 +7,16 @@ const networkLinks = new NetworkLinksRepository();
 
 /** Distil a stored `Job` into the facts the matcher filters on. */
 export function jobToMatchInput(job: Job): JobMatchInput {
-  // Network scoping (TRX-78) applies only to real warranty companies. The
-  // default tenant (DEMOTENANT) owns consumer jobs — which are an OPEN pool, not
-  // network-restricted — so treat it as un-tenanted here. Without this, TRX-77's
-  // stamping of every job with the default tenant would silently exclude all
-  // consumer jobs from matching (no org is in the default tenant's network).
-  const defaultTenant = process.env['DEFAULT_WARRANTY_COMPANY_ID'] ?? 'demotenant';
-  const scopedCompanyId = job.warrantyCompanyId && job.warrantyCompanyId !== defaultTenant
-    ? job.warrantyCompanyId
-    : undefined;
+  // Every job belongs to a tenant and reaches ONLY that tenant's enabled
+  // network (TRX-78) — no exceptions. A repairer must be enrolled in the
+  // tenant's network (admin-managed, TRX-23) to receive its jobs.
   return {
     postcode: job.location?.postcode ?? '',
     ...(job.vehicleSummary?.vehicleSize
       ? { vehicleSize: job.vehicleSummary.vehicleSize as VehicleSize }
       : {}),
     repairMethods: (job.repairMethods ?? []) as JobMatchInput['repairMethods'],
-    ...(scopedCompanyId ? { warrantyCompanyId: scopedCompanyId } : {}),
+    ...(job.warrantyCompanyId ? { warrantyCompanyId: job.warrantyCompanyId } : {}),
     ...(job.location?.lat != null ? { lat: job.location.lat } : {}),
     ...(job.location?.lng != null ? { lng: job.location.lng } : {}),
   };
