@@ -101,6 +101,13 @@ async function warrantyCompaniesHandler(
   const body = parseBody(event, updateSchema);
   const existing = await companies.getById(id);
   if (!existing) throw new NotFoundError('WarrantyCompany', id);
+  // Bump the matrix version on any ruleset edit (TRX-76) so previously stored
+  // quotes stay reproducible against the version they were priced at. Keep the
+  // author's base version, append a fresh save stamp.
+  if (body.scheme) {
+    const base = body.scheme.matrix.version.split('@')[0];
+    body.scheme.matrix.version = `${base}@${new Date().toISOString().slice(0, 19)}Z`;
+  }
   await companies.update(id, body as Partial<Pick<WarrantyCompany, 'name' | 'status' | 'scheme'>>);
   return ok({ company: await companies.getById(id) });
 }

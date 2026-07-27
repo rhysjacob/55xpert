@@ -113,6 +113,7 @@ export class ApiStack extends cdk.Stack {
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
       WARRANTY_SCHEME: config.warrantyScheme,
+      DEFAULT_WARRANTY_COMPANY_ID: config.defaultWarrantyCompanyId,
       CONFIDENCE_THRESHOLD: config.confidenceThreshold.toString(),
       INTRODUCTION_FEE: config.introductionFee.toString(),
     };
@@ -332,6 +333,7 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminPushJob', 'admin/push-job.ts', apigw.HttpMethod.POST, '/api/v1/admin/jobs/{jobId}/push');
     // One-off geocode backfill for existing orgs + open jobs (postcodes.io).
     addRoute('AdminGeocodeBackfill', 'admin/geocode-backfill.ts', apigw.HttpMethod.POST, '/api/v1/admin/geocode-backfill', { timeout: cdk.Duration.seconds(120) });
+    addRoute('AdminTenantBackfill', 'admin/tenant-backfill.ts', apigw.HttpMethod.POST, '/api/v1/admin/tenant-backfill', { timeout: cdk.Duration.seconds(120) });
 
     // Admin debug: AI model picker (read + set), gated by the SSM toggle.
     const modelConfigGet = addRoute('AdminModelConfigGet', 'admin/model-config.ts', apigw.HttpMethod.GET, '/api/v1/admin/model-config');

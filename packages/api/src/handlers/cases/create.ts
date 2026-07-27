@@ -43,11 +43,16 @@ async function createHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   const body = parseBody(event, createSchema);
   const now = new Date().toISOString();
 
+  // Stamp the tenant (TRX-77). Consumer-submitted cases belong to the default
+  // tenant (DEMOTENANT); ingested cases carry their warranty company instead.
+  // The published job + payment inherit this downstream.
+  const defaultTenant = process.env['DEFAULT_WARRANTY_COMPANY_ID'] ?? 'demotenant';
   const newCase: Case = {
     caseId: randomUUID(),
     referenceNo: generateCaseReference(),
     userId: auth.userId,
     status: 'DRAFT',
+    warrantyCompanyId: defaultTenant,
     postcode: body.postcode,
     incidentDate: body.incidentDate,
     incidentNotes: body.incidentNotes,

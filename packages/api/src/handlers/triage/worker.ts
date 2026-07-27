@@ -43,10 +43,10 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       return;
     }
 
-    // Resolve this case's warranty ruleset. Cases aren't tenant-stamped yet
-    // (multi-tenancy phase 3), so fall back to the deploy default company id;
-    // once stamped this becomes caseData.warrantyCompanyId.
-    const scheme = await getSchemeForCompany(process.env['WARRANTY_SCHEME']);
+    // Resolve this case's warranty ruleset from its tenant (TRX-77). Cases are
+    // now tenant-stamped, so each case is priced against ITS company's scheme;
+    // fall back to the deploy default only for any legacy un-stamped row.
+    const scheme = await getSchemeForCompany(caseData.warrantyCompanyId ?? process.env['WARRANTY_SCHEME']);
 
     // Fetch each image once. Extract forensics from the ORIGINAL bytes first —
     // downscaling for Bedrock destroys EXIF and alters hashes, so order matters:

@@ -42,9 +42,9 @@ async function reviewHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   if (!caseData) {
     throw new NotFoundError('Case', caseId);
   }
-  // Resolve the case's warranty ruleset (tenant-aware; default until cases are
-  // stamped in multi-tenancy phase 3).
-  const scheme = await getSchemeForCompany(process.env['WARRANTY_SCHEME']);
+  // Resolve the case's warranty ruleset from its tenant (TRX-77); fall back to
+  // the deploy default only for a legacy un-stamped case.
+  const scheme = await getSchemeForCompany(caseData.warrantyCompanyId ?? process.env['WARRANTY_SCHEME']);
   // An Xpert can review cases awaiting review, or override an auto-declined
   // (INELIGIBLE) case.
   if (caseData.status !== 'XPERT_REVIEW' && caseData.status !== 'INELIGIBLE') {

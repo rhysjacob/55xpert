@@ -9,6 +9,8 @@ export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
 export interface Payment {
   paymentId: string;
   jobId: string;
+  /** Tenant, inherited from the job/case (TRX-77). Set at creation when a payment-write path exists. */
+  warrantyCompanyId?: string;
   repairerId: string;
   amount: number;
   currency: string;
