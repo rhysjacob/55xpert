@@ -16,6 +16,7 @@ export const company2025: WarrantyScheme = {
     minSizeConfidence: 0.5,
     referOnReplace: true,
     referOnSevere: true,
+    totalLossThresholdPct: 80,
   },
   matrix: {
     version: '2025',

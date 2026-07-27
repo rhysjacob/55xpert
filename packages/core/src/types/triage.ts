@@ -80,7 +80,7 @@ export type EligibilityVerdict = (typeof EligibilityVerdict)[keyof typeof Eligib
 
 /** A single reason contributing to an eligibility verdict. */
 export interface EligibilityReason {
-  rule: 'PANEL_COUNT' | 'DAMAGE_SIZE' | 'EXCLUDED_PANEL' | 'SIZE_UNKNOWN' | 'NON_STANDARD_REPAIR';
+  rule: 'PANEL_COUNT' | 'DAMAGE_SIZE' | 'EXCLUDED_PANEL' | 'SIZE_UNKNOWN' | 'NON_STANDARD_REPAIR' | 'TOTAL_LOSS';
   verdict: EligibilityVerdict;
   detail: string;
 }

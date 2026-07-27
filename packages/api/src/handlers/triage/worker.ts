@@ -2,7 +2,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../../lib/logger';
 import { prepareImageForBedrock } from '../../lib/image';
 import { CasesRepository } from '@corexpert/db';
-import { quoteFromPanels, evaluateEligibility, scoreFraud } from '@corexpert/core';
+import { quoteFromPanels, evaluateEligibility, scoreFraud, assessTotalLoss } from '@corexpert/core';
 import { getSchemeForCompany } from '../../lib/warranty-company';
 import type {
   TriageResult,
@@ -151,17 +151,6 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       });
     }
 
-    // Refer to an Xpert on low AI confidence OR a borderline/undeterminable
-    // eligibility call. A hard INELIGIBLE verdict normally never needs review —
-    // but suspected fraud ALWAYS refers, overriding that shortcut, so a
-    // fraudulent-looking case gets human eyes even when we wouldn't take it.
-    const requiresXpertReview =
-      fraudSuspected ||
-      (eligibility.verdict !== 'INELIGIBLE' &&
-        (aiResult.requiresHumanReview ||
-          aiResult.overallConfidence === 'LOW' ||
-          eligibility.verdict === 'REFER'));
-
     // The matrix is the SOLE source of price. Only price a fully-eligible job;
     // INELIGIBLE cases and cases awaiting an Xpert carry no auto-generated price.
     let totalEstimatedCost = 0;
@@ -173,6 +162,37 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       matrixVersion = quote.matrixVersion;
       priceLineItems = quote.lineItems;
     }
+
+    // Total-loss guard (TRX-6): once the repair is priced, a case whose estimate
+    // reaches the scheme's threshold of the vehicle's value is a potential total
+    // loss — flip an otherwise-eligible case to INELIGIBLE with a TOTAL_LOSS
+    // reason (auto-rejected below, not sent for review). Skipped when no value
+    // is known (e.g. consumer cases carry none).
+    const vehicleValuePence = caseData.vehicle?.valuePence;
+    if (eligibility.verdict === 'ELIGIBLE' && vehicleValuePence != null) {
+      const thresholdPct = scheme.eligibility.totalLossThresholdPct ?? 80;
+      const tl = assessTotalLoss({ estimatedCostPence: totalEstimatedCost, vehicleValuePence, thresholdPct });
+      if (tl.isTotalLoss) {
+        eligibility.verdict = 'INELIGIBLE';
+        eligibility.reasons.push({
+          rule: 'TOTAL_LOSS',
+          verdict: 'INELIGIBLE',
+          detail: `Estimated repair £${Math.round(totalEstimatedCost / 100)} is ${tl.ratioPct}% of vehicle value £${Math.round(vehicleValuePence / 100)} (≥ ${thresholdPct}% total-loss threshold).`,
+        });
+        logger.info('Auto-rejected as potential total loss', { caseId, ratioPct: tl.ratioPct, thresholdPct });
+      }
+    }
+
+    // Refer to an Xpert on low AI confidence OR a borderline/undeterminable
+    // eligibility call. A hard INELIGIBLE verdict normally never needs review —
+    // but suspected fraud ALWAYS refers, overriding that shortcut, so a
+    // fraudulent-looking case gets human eyes even when we wouldn't take it.
+    const requiresXpertReview =
+      fraudSuspected ||
+      (eligibility.verdict !== 'INELIGIBLE' &&
+        (aiResult.requiresHumanReview ||
+          aiResult.overallConfidence === 'LOW' ||
+          eligibility.verdict === 'REFER'));
 
     const triageResult: TriageResult = {
       overallConfidence: aiResult.overallConfidence,
@@ -213,8 +233,13 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       }
     } else if (nextStatus === 'INELIGIBLE') {
       // An ingested (warranty-company) job that triages ineligible is auto-rejected
-      // back to the company with the reason (TRX-9). No-op for consumer cases.
-      await rejectIngestedCase(caseData, 'INELIGIBLE', triageResult.summary).catch((err) =>
+      // back to the company with the reason (TRX-9). Total loss gets its own
+      // machine code + detail (TRX-6). No-op for consumer cases.
+      const totalLoss = eligibility.reasons.find((r) => r.rule === 'TOTAL_LOSS');
+      const [reasonCode, detail] = totalLoss
+        ? (['TOTAL_LOSS', totalLoss.detail] as const)
+        : (['INELIGIBLE', triageResult.summary] as const);
+      await rejectIngestedCase(caseData, reasonCode, detail).catch((err) =>
         logger.error('Ingestion rejection feedback failed', err, { caseId }),
       );
     }

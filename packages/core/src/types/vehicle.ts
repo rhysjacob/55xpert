@@ -37,6 +37,13 @@ export interface Vehicle {
   colour?: string;
   vehicleSize?: VehicleSize;
   provenance?: VehicleProvenance;
+  /**
+   * Pre-accident / market value in pence. Used by the total-loss guard (TRX-6):
+   * a repair estimate at or above the scheme's threshold percentage of this
+   * value is auto-rejected. Typically supplied by the warranty company on an
+   * ingested job; absent for consumer cases, in which case the guard is skipped.
+   */
+  valuePence?: number;
 }
 
 export interface VehicleLookupResponse {
