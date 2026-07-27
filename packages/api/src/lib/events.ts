@@ -17,6 +17,8 @@ export const APP_EVENT_SOURCE = 'corexpert.app';
 /** Known domain event detail-types. */
 export const DomainEvent = {
   JOB_PUBLISHED: 'job.published',
+  /** A repairer raised a post-acceptance "refer to expert" query (TRX-57). */
+  JOB_QUERY_RAISED: 'job.query.raised',
 } as const;
 export type DomainEvent = (typeof DomainEvent)[keyof typeof DomainEvent];
 

@@ -13,6 +13,7 @@ export * from './types/organisation';
 export * from './types/ingestion';
 export * from './types/lead';
 export * from './types/complaint';
+export * from './types/job-query';
 
 // Constants
 export * from './constants/panels';

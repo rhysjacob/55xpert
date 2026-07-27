@@ -30,6 +30,7 @@ export interface ApiStackProps extends cdk.StackProps {
   ingestionsTable: dynamodb.ITable;
   leadsTable: dynamodb.ITable;
   complaintsTable: dynamodb.ITable;
+  jobQueriesTable: dynamodb.ITable;
   imagesBucket: s3.IBucket;
 }
 
@@ -70,7 +71,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
-    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable, props.leadsTable, props.complaintsTable];
+    const allTables = [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable, props.correctionsTable, props.warrantyCompaniesTable, props.organisationsTable, props.networkLinksTable, props.ingestionsTable, props.leadsTable, props.complaintsTable, props.jobQueriesTable];
 
     // App domain-event bus. Producers emit (e.g. job.published); decoupled
     // consumers (notifications) subscribe via rules — nothing sends email/etc
@@ -110,6 +111,8 @@ export class ApiStack extends cdk.Stack {
       FROM_EMAIL: config.notificationsFromEmail,
       FRONTEND_URL: config.frontendUrl,
       LEADS_EMAIL: config.leadsEmail,
+      EXPERT_QUEUE_EMAIL: config.expertQueueEmail,
+      ADMIN_URL: config.adminUrl,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
       WARRANTY_SCHEME: config.warrantyScheme,
@@ -243,6 +246,17 @@ export class ApiStack extends cdk.Stack {
     const jobsAccept = addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept');
     addRoute('JobsDetails', 'jobs/details.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}/details');
 
+    // Post-acceptance "refer to expert" queries (TRX-57).
+    addRoute('RepairerJobQueryCreate', 'repairers/job-query-create.ts', apigw.HttpMethod.POST, '/api/v1/repairer/jobs/{jobId}/queries');
+    addRoute('RepairerJobQueriesList', 'repairers/job-queries-list.ts', apigw.HttpMethod.GET, '/api/v1/repairer/jobs/{jobId}/queries');
+    addRoute('AdminQueriesList', 'admin/queries-list.ts', apigw.HttpMethod.GET, '/api/v1/admin/queries');
+    // Responding emails the repairer directly (best-effort), so grant SES send.
+    const queryRespond = addRoute('AdminQueryRespond', 'admin/query-respond.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/queries/{queryId}');
+    queryRespond.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+    }));
+
     // Notifications: consume job.published off the app bus and email matched
     // repairers (TRX-60). Decoupled — not an HTTP route. Read-only on data; SES
     // send granted separately. FROM must be a verified SES identity.
@@ -263,6 +277,26 @@ export class ApiStack extends cdk.Stack {
       eventBus: appEventBus,
       eventPattern: { source: ['corexpert.app'], detailType: ['job.published'] },
       targets: [new eventsTargets.LambdaFunction(jobPublishedNotifier.function)],
+    });
+
+    // Notifications: consume job.query.raised and email the Xpert team (TRX-57).
+    const jobQueryNotifier = new AppLambda(this, 'JobQueryRaisedNotifier', {
+      entry: path.join(handlersPath, 'notifications/job-query-raised.ts'),
+      environment: sharedEnv,
+      description: 'Email the Xpert team when a repairer refers a job to an expert (TRX-57)',
+      timeout: cdk.Duration.seconds(60),
+    });
+    for (const table of allTables) {
+      table.grantReadData(jobQueryNotifier.function);
+    }
+    jobQueryNotifier.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+    }));
+    new events.Rule(this, 'JobQueryRaisedRule', {
+      eventBus: appEventBus,
+      eventPattern: { source: ['corexpert.app'], detailType: ['job.query.raised'] },
+      targets: [new eventsTargets.LambdaFunction(jobQueryNotifier.function)],
     });
 
     // Scheduled sweeper: expire OPEN jobs past their expiry — 48h for ingested

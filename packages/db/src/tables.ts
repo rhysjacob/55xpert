@@ -12,6 +12,7 @@ export const TABLES = {
   INGESTIONS: `corexpert-${STAGE}-ingestions`,
   LEADS: `corexpert-${STAGE}-leads`,
   COMPLAINTS: `corexpert-${STAGE}-complaints`,
+  JOB_QUERIES: `corexpert-${STAGE}-job-queries`,
 } as const;
 
 export const GSI = {
@@ -45,4 +46,8 @@ export const GSI = {
 
   // Complaints table (TRX-24) — list an org's complaints, newest first.
   COMPLAINTS_ORG: 'organisationId-createdAt-index',
+
+  // Job-queries table (TRX-57) — a job's query thread + the admin/Xpert queue.
+  JOB_QUERIES_JOB: 'jobId-index',
+  JOB_QUERIES_STATUS: 'status-createdAt-index',
 } as const;

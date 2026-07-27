@@ -11,6 +11,7 @@ import { CaseDetailPage } from './pages/CaseDetail';
 import { JobsPage } from './pages/Jobs';
 import { RepairersPage } from './pages/Repairers';
 import { ComplaintsPage } from './pages/Complaints';
+import { QueriesPage } from './pages/Queries';
 import { XpertQueuePage } from './pages/XpertQueue';
 import { XpertReviewPage } from './pages/XpertReview';
 import { ModelConfigPage } from './pages/ModelConfig';
@@ -41,6 +42,7 @@ export function App() {
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/repairers" element={<RepairersPage />} />
               <Route path="/complaints" element={<ComplaintsPage />} />
+              <Route path="/queries" element={<QueriesPage />} />
               <Route path="/xpert/queue" element={<XpertQueuePage />} />
               <Route path="/xpert/cases/:caseId" element={<XpertReviewPage />} />
               <Route path="/settings/model" element={<ModelConfigPage />} />

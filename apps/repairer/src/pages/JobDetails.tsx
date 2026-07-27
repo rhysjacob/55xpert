@@ -1,9 +1,20 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import type { DamagePanel } from '@corexpert/core';
+
+interface JobQuery {
+  queryId: string;
+  status: 'OPEN' | 'ANSWERED' | 'CLOSED';
+  question: string;
+  response?: string;
+  createdAt: string;
+  answeredAt?: string;
+}
 
 interface JobFullDetails {
   jobId: string;
@@ -188,7 +199,77 @@ export function JobDetailsPage() {
             ))}
           </CardBody>
         </Card>
+
+        <ExpertQuerySection jobId={data.jobId} />
       </div>
     </Layout>
+  );
+}
+
+/**
+ * "Raise a question / refer to an expert" (TRX-57) — the deliberate
+ * get-out-of-jail flow on an accepted job. Not a reject: the match fee stands;
+ * an Xpert helps. Shows the thread + any expert replies.
+ */
+function ExpertQuerySection({ jobId }: { jobId: string }) {
+  const qc = useQueryClient();
+  const [question, setQuestion] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ['job-queries', jobId],
+    queryFn: () => api.get<{ items: JobQuery[] }>(`/api/v1/repairer/jobs/${jobId}/queries`),
+  });
+  const items = data?.items ?? [];
+
+  const raise = useMutation({
+    mutationFn: () => api.post(`/api/v1/repairer/jobs/${jobId}/queries`, { question }),
+    onSuccess: () => { setQuestion(''); setOpen(false); void qc.invalidateQueries({ queryKey: ['job-queries', jobId] }); },
+  });
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <h2 className="font-semibold">Need a hand with this job?</h2>
+          {!open && <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Refer to an expert</Button>}
+        </div>
+      </CardHeader>
+      <CardBody className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Spotted something that doesn't add up — hidden damage, a sensor behind a panel, a tricky spec?
+          Raise it with one of our experts rather than walking away. You keep the job and the match fee
+          stands; we'll help you get it done.
+        </p>
+
+        {open && (
+          <form onSubmit={(e) => { e.preventDefault(); if (question.trim()) raise.mutate(); }} className="space-y-2">
+            <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} maxLength={4000} required
+              placeholder="Describe what you'd like an expert to look at…"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            <div className="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit" size="sm" loading={raise.isPending} disabled={!question.trim()}>Send to an expert</Button>
+            </div>
+            {raise.isError && <p className="text-sm text-red-600">Couldn't send — please try again.</p>}
+          </form>
+        )}
+
+        {items.length > 0 && (
+          <div className="space-y-3 pt-2 border-t border-gray-100">
+            {items.map((q) => (
+              <div key={q.queryId} className="text-sm">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${q.status === 'ANSWERED' ? 'bg-emerald-100 text-emerald-800' : q.status === 'CLOSED' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-800'}`}>{q.status}</span>
+                  <span className="text-xs text-gray-400">{new Date(q.createdAt).toLocaleString('en-GB')}</span>
+                </div>
+                <p className="text-gray-700 mt-1 whitespace-pre-wrap"><span className="text-gray-400">You:</span> {q.question}</p>
+                {q.response && <p className="text-gray-800 mt-1 whitespace-pre-wrap bg-emerald-50 rounded-lg px-3 py-2"><span className="text-emerald-700 font-medium">Expert:</span> {q.response}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }
