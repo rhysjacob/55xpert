@@ -4,18 +4,52 @@ import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { toCsv, downloadCsv } from '../lib/csv';
 
 interface Job {
   jobId: string;
+  caseId?: string;
   status: string;
-  vehicleSummary: { make: string; model: string; year: number };
+  vehicleSummary: { make: string; model: string; year: number; vehicleSize?: string };
   damageSummary: string;
   indicativeCost: number;
+  introductionFee?: number;
+  repairMethods?: string[];
+  location?: { postcode?: string };
+  publishedAt?: string;
+  acceptance?: { acceptedAt?: string };
   acceptedAt?: string;
 }
 
 function formatPence(pence: number): string {
-  return `\u00A3${(pence / 100).toFixed(2)}`;
+  return `£${(pence / 100).toFixed(2)}`;
+}
+
+const poundsFromPence = (pence?: number): string => (pence == null ? '' : (pence / 100).toFixed(2));
+
+/** Flatten accepted jobs to CSV rows for the repairer's own DMS (TRX-58). */
+function jobsToCsv(jobs: Job[]): string {
+  const headers = [
+    'Job ID', 'Case ID', 'Accepted at', 'Status', 'Year', 'Make', 'Model', 'Vehicle size',
+    'Postcode', 'Repair methods', 'Indicative cost (GBP)', 'Introduction fee (GBP)', 'Damage summary',
+  ];
+  const rows = jobs.map((j) => [
+    j.jobId,
+    j.caseId ?? '',
+    j.acceptance?.acceptedAt ?? j.acceptedAt ?? '',
+    j.status,
+    j.vehicleSummary?.year ?? '',
+    j.vehicleSummary?.make ?? '',
+    j.vehicleSummary?.model ?? '',
+    j.vehicleSummary?.vehicleSize ?? '',
+    j.location?.postcode ?? '',
+    (j.repairMethods ?? []).join('; '),
+    poundsFromPence(j.indicativeCost),
+    poundsFromPence(j.introductionFee),
+    j.damageSummary ?? '',
+  ]);
+  return toCsv(headers, rows);
 }
 
 export function MyJobsPage() {
@@ -24,13 +58,25 @@ export function MyJobsPage() {
     queryFn: () => api.get<{ items: Job[] }>('/api/v1/repairer/jobs'),
   });
 
+  const jobs = data?.items ?? [];
+
+  const handleDownload = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`accepted-jobs-${stamp}.csv`, jobsToCsv(jobs));
+  };
+
   return (
     <Layout>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">My Jobs</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">My Jobs</h1>
+        {jobs.length > 0 && (
+          <Button variant="secondary" size="sm" onClick={handleDownload}>Download CSV</Button>
+        )}
+      </div>
 
       {isLoading ? (
         <p className="text-gray-500">Loading...</p>
-      ) : !data?.items.length ? (
+      ) : !jobs.length ? (
         <Card>
           <CardBody>
             <p className="text-center text-gray-500 py-8">
@@ -43,7 +89,7 @@ export function MyJobsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {data.items.map((job) => (
+          {jobs.map((job) => (
             <Link key={job.jobId} to={`/jobs/${job.jobId}/details`}>
               <Card className="hover:shadow-md transition-shadow">
                 <CardBody>

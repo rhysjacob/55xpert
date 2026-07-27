@@ -6,6 +6,8 @@ import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/Badge';
+import { InfoTip } from '../components/ui/InfoTip';
+import { INDICATIVE_COST_DISCLAIMER } from '../lib/copy';
 
 interface JobSummary {
   jobId: string;
@@ -107,7 +109,7 @@ export function JobDetailPage() {
             <p className="text-gray-700 mb-4">{job.damageSummary}</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-500">Indicative cost</p>
+                <p className="text-sm text-gray-500">Indicative cost<InfoTip text={INDICATIVE_COST_DISCLAIMER} /></p>
                 <p className="text-xl font-bold text-gray-900">{formatPence(job.indicativeCost)}</p>
               </div>
               <div>
