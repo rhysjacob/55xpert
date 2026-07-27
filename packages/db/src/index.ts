@@ -11,4 +11,5 @@ export { NetworkLinksRepository } from './repositories/network-links';
 export { IngestionsRepository } from './repositories/ingestions';
 export { LeadsRepository } from './repositories/leads';
 export { ComplaintsRepository } from './repositories/complaints';
+export { JobQueriesRepository } from './repositories/job-queries';
 export { GSI } from './tables';

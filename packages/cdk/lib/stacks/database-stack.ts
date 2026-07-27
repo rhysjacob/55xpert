@@ -19,6 +19,7 @@ export class DatabaseStack extends cdk.Stack {
   public readonly ingestionsTable: dynamodb.Table;
   public readonly leadsTable: dynamodb.Table;
   public readonly complaintsTable: dynamodb.Table;
+  public readonly jobQueriesTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -201,6 +202,25 @@ export class DatabaseStack extends cdk.Stack {
     this.complaintsTable.addGlobalSecondaryIndex({
       indexName: 'organisationId-createdAt-index',
       partitionKey: { name: 'organisationId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+    });
+
+    // Repairer "refer to expert" queries (TRX-57). Job GSI = a job's thread;
+    // status GSI = the admin/Xpert queue.
+    this.jobQueriesTable = new dynamodb.Table(this, 'JobQueriesTable', {
+      tableName: `corexpert-${config.stage}-job-queries`,
+      partitionKey: { name: 'queryId', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: removal,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+    });
+    this.jobQueriesTable.addGlobalSecondaryIndex({
+      indexName: 'jobId-index',
+      partitionKey: { name: 'jobId', type: dynamodb.AttributeType.STRING },
+    });
+    this.jobQueriesTable.addGlobalSecondaryIndex({
+      indexName: 'status-createdAt-index',
+      partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
     });
   }
