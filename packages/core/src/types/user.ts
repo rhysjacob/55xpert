@@ -67,6 +67,10 @@ export interface RepairerPreferences {
   vehicleSizes: VehicleSize[];
   repairMethods: RepairMethod[];
   notifyByEmail: boolean;
+  /** Also send job alerts via WhatsApp (TRX-61). Requires whatsappNumber + an opt-in. */
+  notifyByWhatsApp?: boolean;
+  /** E.164 WhatsApp number for alerts (e.g. +447700900123). */
+  whatsappNumber?: string;
 }
 
 // Re-export from vehicle/triage for convenience in preferences

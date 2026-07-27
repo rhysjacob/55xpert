@@ -36,6 +36,13 @@ export interface EnvironmentConfig {
   /** Admin SPA base URL, used in expert-query notification links (TRX-57). */
   adminUrl: string;
   /**
+   * WhatsApp job-alert channel (TRX-61) — non-secret config. Dormant while
+   * blank; the ACCESS TOKEN is injected separately from Secrets Manager at
+   * go-live (never in config). See docs/whatsapp-feasibility.md.
+   */
+  whatsappPhoneNumberId: string;
+  whatsappAlertTemplate: string;
+  /**
    * Stripe EventBridge partner event source name (e.g.
    * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
    * Empty until configured; when set, the CDK associates it with an event bus
@@ -74,6 +81,8 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     leadsEmail: 'rhys.jacob@d55.co.uk',
     expertQueueEmail: 'rhys.jacob@d55.co.uk',
     adminUrl: 'https://d1pqg5zsx4s9wp.cloudfront.net',
+    whatsappPhoneNumberId: '',
+    whatsappAlertTemplate: 'job_alert',
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
@@ -102,6 +111,8 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     leadsEmail: 'hello@repairxchange.co.uk',
     expertQueueEmail: 'experts@repairxchange.co.uk',
     adminUrl: 'https://admin.repairxchange.co.uk',
+    whatsappPhoneNumberId: '',
+    whatsappAlertTemplate: 'job_alert',
     stripeEventSourceName: '',
     stripePriceId: '',
   },
