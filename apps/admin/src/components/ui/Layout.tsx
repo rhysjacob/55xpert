@@ -30,6 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <Link to="/complaints" className="text-sm text-gray-600 hover:text-gray-900">Complaints</Link>
                 <Link to="/xpert/queue" className="text-sm text-gray-600 hover:text-gray-900">Xpert Queue</Link>
                 <Link to="/settings/model" className="text-sm text-gray-600 hover:text-gray-900">Model</Link>
+                <Link to="/settings/rules" className="text-sm text-gray-600 hover:text-gray-900">Rules</Link>
               </div>
             </div>
             {user && (

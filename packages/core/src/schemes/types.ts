@@ -24,6 +24,12 @@ export interface EligibilityRules {
   referOnReplace: boolean;
   /** Refer SEVERE damage to an Xpert rather than auto-price it. */
   referOnSevere: boolean;
+  /**
+   * Potential total loss threshold (TRX-6): auto-reject when the repair estimate
+   * is at or above this percentage of the vehicle's value. Agreed default 80.
+   * Only applied when the case carries a vehicle value.
+   */
+  totalLossThresholdPct: number;
 }
 
 /** Repair-pricing matrix for a scheme (all amounts in pence, ex-VAT). */

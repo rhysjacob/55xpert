@@ -23,6 +23,7 @@ const eligibilitySchema = z.object({
   minSizeConfidence: z.number().min(0).max(1),
   referOnReplace: z.boolean(),
   referOnSevere: z.boolean(),
+  totalLossThresholdPct: z.number().min(0).max(100),
 });
 
 const matrixSchema = z.object({

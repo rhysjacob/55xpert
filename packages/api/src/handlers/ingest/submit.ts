@@ -31,6 +31,8 @@ const ingestSchema = z.object({
     model: z.string().max(64).optional(),
     year: z.number().int().optional(),
     vehicleSize: z.enum(['SMALL', 'MEDIUM', 'LARGE', 'VAN', 'SUV']).optional(),
+    /** Pre-accident / market value in pence — drives the total-loss guard (TRX-6). */
+    valuePence: z.number().int().nonnegative().optional(),
   }),
   incidentNotes: z.string().max(2000).optional(),
   images: z.array(imageSchema).max(12),

@@ -40,6 +40,8 @@ export const RejectionReason = {
   TOO_FEW_PHOTOS: 'TOO_FEW_PHOTOS',
   DUPLICATE: 'DUPLICATE',
   INELIGIBLE: 'INELIGIBLE',
+  /** Repair estimate ≥ the scheme's total-loss threshold of vehicle value (TRX-6). */
+  TOTAL_LOSS: 'TOTAL_LOSS',
   TRIAGE_FAILED: 'TRIAGE_FAILED',
 } as const;
 export type RejectionReason = (typeof RejectionReason)[keyof typeof RejectionReason];

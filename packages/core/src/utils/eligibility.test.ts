@@ -10,6 +10,7 @@ const RULES: EligibilityRules = {
   minSizeConfidence: 0.5,
   referOnReplace: true,
   referOnSevere: true,
+  totalLossThresholdPct: 80,
 };
 
 /** A clean, confidently-sized, in-limit panel. */
