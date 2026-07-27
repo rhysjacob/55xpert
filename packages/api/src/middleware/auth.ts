@@ -6,6 +6,7 @@ interface CognitoClaims {
   sub: string;
   email: string;
   'cognito:groups'?: string[];
+  warrantyCompanyId?: string;
 }
 
 function parseCognitoClaims(event: APIGatewayProxyEventV2): CognitoClaims {
@@ -41,7 +42,13 @@ function parseCognitoClaims(event: APIGatewayProxyEventV2): CognitoClaims {
       ? groups.replace(/^\[|\]$/g, '').split(/[\s,]+/).map((g) => g.trim()).filter(Boolean)
       : [];
 
-  return { sub, email, 'cognito:groups': parsedGroups };
+  const warrantyCompanyId = claims['custom:warrantyCompanyId'];
+  return {
+    sub,
+    email,
+    'cognito:groups': parsedGroups,
+    ...(typeof warrantyCompanyId === 'string' && warrantyCompanyId ? { warrantyCompanyId } : {}),
+  };
 }
 
 /** Map Cognito group names to UserRole values. */
@@ -67,7 +74,22 @@ export function getAuthContext(event: APIGatewayProxyEventV2): AuthContext {
     userId: claims.sub,
     email: claims.email,
     roles,
+    ...(claims.warrantyCompanyId ? { warrantyCompanyId: claims.warrantyCompanyId } : {}),
   };
+}
+
+/**
+ * Central tenant scope (TRX-77). Returns the `warrantyCompanyId` that a user's
+ * queries must be restricted to, or `null` to see across all tenants.
+ *
+ * ADMIN and XPERT bypass the scope (full cross-company visibility — the stated
+ * requirement). A company-facing user is confined to their own tenant. Consumers
+ * and repairers carry no tenant (they're scoped by ownership / the matching
+ * engine instead), so they also return null here.
+ */
+export function tenantScope(auth: AuthContext): string | null {
+  if (auth.roles.includes('ADMIN') || auth.roles.includes('XPERT')) return null;
+  return auth.warrantyCompanyId ?? null;
 }
 
 /** Require specific roles. Throws ForbiddenError if user doesn't have any of the required roles. */

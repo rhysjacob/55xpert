@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { withErrorHandler } from '../../middleware/error-handler';
-import { getAuthContext, requireRole } from '../../middleware/auth';
+import { getAuthContext, requireRole, tenantScope } from '../../middleware/auth';
 import { getQueryParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
 import { TABLES } from '@corexpert/db';
@@ -21,7 +21,9 @@ async function miHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxy
   const auth = getAuthContext(event);
   requireRole(auth, 'ADMIN');
 
-  const companyId = getQueryParam(event, 'warrantyCompanyId');
+  // Central tenant scope (TRX-77): admin/Xpert may filter to any company (or
+  // none); a company-facing user is forced to their own tenant and can't widen it.
+  const companyId = tenantScope(auth) ?? getQueryParam(event, 'warrantyCompanyId');
 
   const nowIso = new Date().toISOString();
   const [allCases, allJobs, users, allComplaints] = await Promise.all([

@@ -83,6 +83,8 @@ export class AuthStack extends cdk.Stack {
         business_name: new cognito.StringAttribute({ mutable: true }),
         postcode: new cognito.StringAttribute({ mutable: true }),
         organisation_id: new cognito.StringAttribute({ mutable: true }),
+        // Tenant for company-facing users (TRX-77) → claim custom:warrantyCompanyId.
+        warrantyCompanyId: new cognito.StringAttribute({ mutable: true }),
       },
       lambdaTriggers: {
         postConfirmation: postConfirmation.function,
