@@ -53,19 +53,24 @@ These are Meta platform rules, not our choices — they shape everything below.
 | Fit with our stack | **Excellent** — we already have Lambda + API Gateway + EventBridge + Secrets Manager; outbound templates are a couple of REST calls | Adds a third-party dependency + its own auth/webhook model |
 | Support / hand-holding | Self-serve | Real support, useful for first-time WABA setup |
 
-**Recommendation: start with the direct Meta Cloud API**, behind our existing
-provider abstraction.
+**Decision (updated): use Twilio (BSP)**, behind our `WhatsAppSender` abstraction.
 
-- Our phase-1 need (TRX-61) is *outbound Utility templates* — a small, well-
-  documented surface (`POST /{phone-number-id}/messages`). We already have the
-  plumbing (see §6), so the marginal build is small and there's no BSP markup.
-- **Keep it swappable.** We implement a `WhatsAppSender` interface (mirroring the
-  `EmailSender` abstraction from TRX-60), so if inbound routing / an agent inbox
-  for TRX-57/68 becomes painful, we can adopt a BSP (360dialog is the value pick
-  — flat monthly, no per-message markup; Twilio is the DX pick) **without
-  touching callers**.
-- **Fallback if Ops wants zero platform setup:** go BSP-first (Twilio) purely to
-  shorten time-to-live, then revisit. The abstraction makes this reversible.
+We initially recommended the direct Meta Cloud API, but chose **Twilio** for
+faster, hand-held onboarding — Twilio provisions the WhatsApp number, drives
+template submission/approval, and lets us validate the whole pipeline on its
+**sandbox** before the production number/template are live. The trade-off is a
+small per-message markup over Meta's raw rate, which is acceptable for the
+alert volume.
+
+- Phase-1 need (TRX-61) is *outbound Utility templates* — Twilio's Content API
+  is one REST call (`POST /Accounts/{sid}/Messages.json` with `ContentSid` +
+  `ContentVariables`). We already have Lambda + EventBridge + Secrets Manager.
+- **Kept swappable.** The `WhatsAppSender` interface (mirroring `EmailSender`
+  from TRX-60) means we can move to the direct Cloud API or another BSP later
+  **without touching callers**. The direct Cloud API implementation was
+  deprecated in favour of Twilio (recoverable from git history if ever needed).
+- **Sandbox first:** Twilio's WhatsApp sandbox lets us test end-to-end (join by
+  texting a code) before the number/template are approved.
 
 ## 4. Decision 2 — The phone number (the "eSIM" question)
 
@@ -139,26 +144,33 @@ only true blocker is the account/number/template (this doc's §8).
 
 ## 8. What Ops must action to go live (the actual blockers)
 
-Engineering can build TRX-61 now (dormant). To **send a real message**, Ops needs:
+TRX-61 is built and dormant (Twilio sender). To **send a real message** via
+Twilio, Ops needs:
 
-1. A **Meta Business Portfolio** (Business Manager) + **business verification**.
-2. A **WhatsApp Business Account (WABA)** in it.
-3. A **dedicated phone number** (eSIM/VoIP/company mobile, *not* on personal
-   WhatsApp) verified against the WABA (SMS or voice OTP).
-4. A **system-user access token** with `whatsapp_business_messaging` — stored in
-   Secrets Manager.
-5. At least one **approved Utility template** for the job alert (we'll draft the
-   copy; Ops submits/approves in Business Manager).
-6. Decide **direct vs BSP** per §3 (recommendation: direct Cloud API first).
+1. A **Twilio account** — sign up at https://www.twilio.com/try-twilio.
+2. **WhatsApp on Twilio** — request access / register a WhatsApp sender:
+   https://www.twilio.com/en-us/messaging/channels/whatsapp. Twilio guides the
+   WABA + number + business verification. (Test immediately meanwhile on the
+   **WhatsApp Sandbox**: Console → Messaging → Try it out → Send a WhatsApp
+   message.)
+3. A **WhatsApp sender number** (Twilio provisions/registers it; not a number on
+   personal WhatsApp).
+4. The **Account SID** (public id) + an **Auth Token** — the token stored in
+   **Secrets Manager**, injected as `TWILIO_AUTH_TOKEN` at go-live.
+5. An **approved Utility template** for the job alert — its **Content SID** (HX…).
+   We'll draft the copy; Ops creates/submits it in the Twilio Content Template
+   Builder.
 
-Hand us items 3–5 (phone-number ID + token in Secrets Manager + approved
-template name) and the dormant channel goes live with a config flip.
+Hand us the **Account SID**, **WhatsApp sender number**, **template Content SID**
+(safe to share), and confirm the **Auth Token is in Secrets Manager** → the
+dormant channel goes live with a config flip (set `twilioAccountSid` /
+`twilioWhatsAppFrom` / `twilioWhatsAppTemplateSid`, wire the token, redeploy).
 
 ## 9. Recommendation summary & phasing
 
-- **Route:** direct **Meta Cloud API**, behind a swappable `WhatsAppSender`
-  abstraction (BSP later if inbound/inbox needs grow). ✅
-- **Number:** one **dedicated eSIM/VoIP** company number, reserved for the
+- **Route:** **Twilio (BSP)**, behind a swappable `WhatsAppSender` abstraction
+  (the direct Cloud API impl was deprecated; recoverable from git if needed). ✅
+- **Number:** a **Twilio-provisioned WhatsApp sender number**, reserved for the
   platform. ✅
 - **Multi-user:** outbound to each opted-in member; inbound correlated by phone
   → user/org; BSP inbox only if manual volume demands. ✅

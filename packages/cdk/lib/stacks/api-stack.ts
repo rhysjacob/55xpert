@@ -113,10 +113,11 @@ export class ApiStack extends cdk.Stack {
       LEADS_EMAIL: config.leadsEmail,
       EXPERT_QUEUE_EMAIL: config.expertQueueEmail,
       ADMIN_URL: config.adminUrl,
-      // WhatsApp (TRX-61) — non-secret config; blank keeps the channel dormant.
-      // WHATSAPP_ACCESS_TOKEN is injected from Secrets Manager at go-live, not here.
-      WHATSAPP_PHONE_NUMBER_ID: config.whatsappPhoneNumberId,
-      WHATSAPP_ALERT_TEMPLATE: config.whatsappAlertTemplate,
+      // WhatsApp via Twilio (TRX-61) — non-secret config; blank keeps it dormant.
+      // TWILIO_AUTH_TOKEN is injected from Secrets Manager at go-live, not here.
+      TWILIO_ACCOUNT_SID: config.twilioAccountSid,
+      TWILIO_WHATSAPP_FROM: config.twilioWhatsAppFrom,
+      TWILIO_WHATSAPP_TEMPLATE_SID: config.twilioWhatsAppTemplateSid,
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
       WARRANTY_SCHEME: config.warrantyScheme,
