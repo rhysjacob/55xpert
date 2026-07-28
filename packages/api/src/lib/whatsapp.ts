@@ -3,25 +3,26 @@ import type { Job } from '@corexpert/core';
 
 // ---------------------------------------------------------------------------
 // Provider-agnostic WhatsApp (TRX-61), mirroring the EmailSender abstraction.
-// Callers depend on the WhatsAppSender interface, never a concrete provider, so
-// a BSP (Twilio/360dialog) could replace the direct Cloud API later with no
-// caller changes (see docs/whatsapp-feasibility.md).
+// Callers depend on the WhatsAppSender interface, never a concrete provider.
+// We send via TWILIO (BSP) — Twilio provisions the WhatsApp number, templates
+// and approval, which is simpler to onboard than the direct Meta Cloud API
+// (see docs/whatsapp-feasibility.md). The interface means another provider
+// (e.g. direct Cloud API or 360dialog) can be swapped in with no caller changes.
 //
-// SHIPS DORMANT: until WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN are set
-// (the token belongs in Secrets Manager, injected at deploy), getWhatsAppSender()
-// returns a no-op that logs and skips — exactly like SES sitting in sandbox.
-// Nothing calls this from a request path: sends are driven off EventBridge.
+// SHIPS DORMANT: until the Twilio credentials + sender + template are set (the
+// auth token from Secrets Manager), getWhatsAppSender() returns a no-op that
+// logs and skips — exactly like SES sitting in sandbox. Nothing calls this from
+// a request path: sends are driven off EventBridge.
 // ---------------------------------------------------------------------------
 
 export interface WhatsAppMessage {
   /** Recipient in E.164, e.g. +447700900123. */
   to: string;
-  /** Approved Meta template name (business-initiated messages require a template). */
-  templateName: string;
-  /** Ordered body parameters filling the template's {{1}},{{2}},… placeholders. */
+  /**
+   * Ordered body variables that fill the approved template's {{1}},{{2}},…
+   * placeholders. The template itself is provider config (Twilio Content SID).
+   */
   parameters: string[];
-  /** BCP-47 language code the template was approved in (default en_GB). */
-  languageCode?: string;
 }
 
 export interface WhatsAppSender {
@@ -30,39 +31,41 @@ export interface WhatsAppSender {
   send(message: WhatsAppMessage): Promise<void>;
 }
 
-/** Direct Meta Cloud API sender: POST /{phoneNumberId}/messages. */
-class CloudApiWhatsAppSender implements WhatsAppSender {
+/**
+ * Twilio-backed sender. Sends an approved WhatsApp template via the Twilio
+ * Content API: POST /Accounts/{sid}/Messages.json with ContentSid +
+ * ContentVariables. Numbers are prefixed `whatsapp:` per Twilio's channel.
+ */
+class TwilioWhatsAppSender implements WhatsAppSender {
   readonly configured = true;
   constructor(
-    private readonly phoneNumberId: string,
-    private readonly accessToken: string,
-    private readonly apiVersion: string,
+    private readonly accountSid: string,
+    private readonly authToken: string,
+    private readonly fromNumber: string,
+    private readonly templateSid: string,
   ) {}
 
   async send(message: WhatsAppMessage): Promise<void> {
-    const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
-    const body = {
-      messaging_product: 'whatsapp',
-      to: message.to,
-      type: 'template',
-      template: {
-        name: message.templateName,
-        language: { code: message.languageCode ?? 'en_GB' },
-        components: message.parameters.length
-          ? [{ type: 'body', parameters: message.parameters.map((text) => ({ type: 'text', text })) }]
-          : [],
-      },
-    };
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
+    // Twilio ContentVariables maps the template's numbered placeholders to values.
+    const variables = Object.fromEntries(message.parameters.map((v, i) => [String(i + 1), v]));
+    const body = new URLSearchParams({
+      To: `whatsapp:${message.to}`,
+      From: `whatsapp:${this.fromNumber}`,
+      ContentSid: this.templateSid,
+      ContentVariables: JSON.stringify(variables),
+    });
+    const auth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
     const res = await fetch(url, {
       method: 'POST',
-      headers: { authorization: `Bearer ${this.accessToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      headers: { authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded' },
+      body,
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      throw new Error(`WhatsApp send failed (${res.status}): ${detail.slice(0, 300)}`);
+      throw new Error(`Twilio WhatsApp send failed (${res.status}): ${detail.slice(0, 300)}`);
     }
-    logger.info('WhatsApp message sent', { to: message.to, template: message.templateName });
+    logger.info('WhatsApp message sent (Twilio)', { to: message.to });
   }
 }
 
@@ -70,24 +73,27 @@ class CloudApiWhatsAppSender implements WhatsAppSender {
 class NoopWhatsAppSender implements WhatsAppSender {
   readonly configured = false;
   async send(message: WhatsAppMessage): Promise<void> {
-    logger.info('WhatsApp not configured — skipping send', { to: message.to, template: message.templateName });
+    logger.info('WhatsApp not configured — skipping send', { to: message.to });
   }
 }
 
 let sender: WhatsAppSender | undefined;
 
 /**
- * The configured WhatsApp sender. Reads WHATSAPP_PHONE_NUMBER_ID +
- * WHATSAPP_ACCESS_TOKEN (the token should be sourced from Secrets Manager);
- * returns the dormant no-op until both are present. Cached per container.
+ * The configured WhatsApp sender. Reads the Twilio config — TWILIO_ACCOUNT_SID,
+ * TWILIO_AUTH_TOKEN (from Secrets Manager), TWILIO_WHATSAPP_FROM (the WhatsApp
+ * sender number) and TWILIO_WHATSAPP_TEMPLATE_SID (the approved template's
+ * Content SID). Returns the dormant no-op until all are present. Cached per
+ * container.
  */
 export function getWhatsAppSender(): WhatsAppSender {
   if (sender) return sender;
-  const phoneNumberId = process.env['WHATSAPP_PHONE_NUMBER_ID'];
-  const accessToken = process.env['WHATSAPP_ACCESS_TOKEN'];
-  const apiVersion = process.env['WHATSAPP_API_VERSION'] ?? 'v20.0';
-  sender = phoneNumberId && accessToken
-    ? new CloudApiWhatsAppSender(phoneNumberId, accessToken, apiVersion)
+  const accountSid = process.env['TWILIO_ACCOUNT_SID'];
+  const authToken = process.env['TWILIO_AUTH_TOKEN'];
+  const fromNumber = process.env['TWILIO_WHATSAPP_FROM'];
+  const templateSid = process.env['TWILIO_WHATSAPP_TEMPLATE_SID'];
+  sender = accountSid && authToken && fromNumber && templateSid
+    ? new TwilioWhatsAppSender(accountSid, authToken, fromNumber, templateSid)
     : new NoopWhatsAppSender();
   return sender;
 }
@@ -95,22 +101,18 @@ export function getWhatsAppSender(): WhatsAppSender {
 const money = (pence: number): string => `£${Math.round(pence / 100)}`;
 
 /**
- * Map a job to the approved job-alert template (TRX-61). The template name comes
- * from WHATSAPP_ALERT_TEMPLATE; the body parameters are ordered to match the
- * template Meta approves — DRAFT copy for that template:
+ * Map a job to the approved job-alert template's ordered variables (TRX-61).
+ * The template is configured on the sender (Twilio Content SID). DRAFT copy for
+ * Meta/Twilio approval:
  *
  *   "New job on The Repair XChange: {{1}} in {{2}}. Indicative {{3}}, match fee
  *    {{4}} on accept. Jobs are first-come, first-served — open the app to accept."
  *
- * Params: 1=vehicle, 2=location, 3=indicative cost, 4=match fee.
+ * Variables: 1=vehicle, 2=location, 3=indicative cost, 4=match fee.
  */
 export function jobAlertWhatsApp(job: Job, to: string): WhatsAppMessage {
   const v = job.vehicleSummary;
   const vehicle = [v?.year, v?.make, v?.model].filter(Boolean).join(' ') || 'A vehicle';
   const location = job.location?.postcode ?? 'your area';
-  return {
-    to,
-    templateName: process.env['WHATSAPP_ALERT_TEMPLATE'] ?? 'job_alert',
-    parameters: [vehicle, location, money(job.indicativeCost), money(job.introductionFee)],
-  };
+  return { to, parameters: [vehicle, location, money(job.indicativeCost), money(job.introductionFee)] };
 }
