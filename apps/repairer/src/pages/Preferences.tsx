@@ -13,6 +13,8 @@ interface RepairerPreferences {
   vehicleSizes: string[];
   repairMethods: string[];
   notifyByEmail: boolean;
+  notifyByWhatsApp?: boolean;
+  whatsappNumber?: string;
 }
 
 // Driven from the shared enums so the options always match what the API accepts
@@ -28,6 +30,8 @@ export function PreferencesPage() {
   const [sizes, setSizes] = useState<string[]>([]);
   const [methods, setMethods] = useState<string[]>([]);
   const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [success, setSuccess] = useState('');
 
   const { data: prefs, isLoading } = useQuery({
@@ -42,6 +46,8 @@ export function PreferencesPage() {
       setSizes(prefs.vehicleSizes ?? []);
       setMethods(prefs.repairMethods ?? []);
       setNotifyEmail(prefs.notifyByEmail ?? true);
+      setNotifyWhatsApp(prefs.notifyByWhatsApp ?? false);
+      setWhatsappNumber(prefs.whatsappNumber ?? '');
     }
   }, [prefs]);
 
@@ -67,6 +73,8 @@ export function PreferencesPage() {
       vehicleSizes: sizes,
       repairMethods: methods,
       notifyByEmail: notifyEmail,
+      notifyByWhatsApp: notifyWhatsApp,
+      whatsappNumber: whatsappNumber.trim(),
     });
   };
 
@@ -159,6 +167,33 @@ export function PreferencesPage() {
                   Notify me by email when matching jobs are posted
                 </span>
               </label>
+
+              <div className="pt-3 mt-3 border-t border-gray-100 space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={notifyWhatsApp}
+                    onChange={(e) => setNotifyWhatsApp(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Also send me job alerts on WhatsApp
+                  </span>
+                </label>
+                {notifyWhatsApp && (
+                  <Input
+                    label="WhatsApp number"
+                    type="tel"
+                    value={whatsappNumber}
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                    placeholder="+44 7700 900123"
+                  />
+                )}
+                <p className="text-xs text-gray-400">
+                  By opting in you consent to receive job alerts on WhatsApp. WhatsApp alerts go live once our
+                  WhatsApp Business number is active — until then you'll continue to receive them by email.
+                </p>
+              </div>
             </CardBody>
           </Card>
 

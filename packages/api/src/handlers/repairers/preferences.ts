@@ -13,6 +13,9 @@ const preferencesSchema = z.object({
   vehicleSizes: z.array(z.enum(['SMALL', 'MEDIUM', 'LARGE'])).optional(),
   repairMethods: z.array(z.enum(['REPAIR', 'REPLACE', 'BLEND', 'PDR'])).optional(),
   notifyByEmail: z.boolean().optional(),
+  notifyByWhatsApp: z.boolean().optional(),
+  // Loose E.164-ish check; the WhatsApp API validates properly on send.
+  whatsappNumber: z.string().regex(/^\+?[0-9\s-]{7,20}$/, 'Enter a valid phone number').optional().or(z.literal('')),
 });
 
 const users = new UsersRepository();
@@ -35,6 +38,13 @@ async function preferencesHandler(event: APIGatewayProxyEventV2): Promise<APIGat
   const existing = await users.getById(auth.userId);
   if (!existing) throw new NotFoundError('User', auth.userId);
 
+  // Normalise the WhatsApp number: '' clears it, and clearing it turns the
+  // channel off (can't alert without a number).
+  const nextNumber = body.whatsappNumber === undefined
+    ? existing.preferences?.whatsappNumber
+    : (body.whatsappNumber.trim() || undefined);
+  const nextWhatsApp = nextNumber ? (body.notifyByWhatsApp ?? existing.preferences?.notifyByWhatsApp ?? false) : false;
+
   await users.update(auth.userId, {
     preferences: {
       maxDistanceMiles: body.maxDistanceMiles ?? existing.preferences?.maxDistanceMiles,
@@ -42,6 +52,8 @@ async function preferencesHandler(event: APIGatewayProxyEventV2): Promise<APIGat
       vehicleSizes: body.vehicleSizes ?? existing.preferences?.vehicleSizes ?? [],
       repairMethods: body.repairMethods ?? existing.preferences?.repairMethods ?? [],
       notifyByEmail: body.notifyByEmail ?? existing.preferences?.notifyByEmail ?? true,
+      notifyByWhatsApp: nextWhatsApp,
+      ...(nextNumber ? { whatsappNumber: nextNumber } : {}),
     },
   });
 

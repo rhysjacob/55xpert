@@ -5,6 +5,7 @@ import { logger } from '../../lib/logger';
 import { resolveMatchTarget, jobToMatchInput } from '../../lib/matching';
 import { getEmailSender } from '../../lib/email';
 import { jobAlertEmail } from '../../lib/email-templates';
+import { getWhatsAppSender, jobAlertWhatsApp } from '../../lib/whatsapp';
 
 const jobs = new JobsRepository();
 const users = new UsersRepository();
@@ -37,28 +38,43 @@ export async function handler(
 
   const input = jobToMatchInput(job);
   const email = getEmailSender();
+  const whatsapp = getWhatsAppSender();
 
   let scanned = 0;
   let notified = 0;
+  let notifiedWhatsApp = 0;
   let cursor: Record<string, unknown> | undefined;
   do {
     const page = await users.listByRole('REPAIRER', 100, cursor);
     for (const user of page.items) {
       scanned += 1;
-      if (!user.email) continue;
-      // Opt-out respected; undefined preference defaults to on.
-      if (user.preferences?.notifyByEmail === false) continue;
       const target = await resolveMatchTarget(user);
       if (!target || !evaluateMatch(input, target).matched) continue;
-      try {
-        await email.send({ to: user.email, ...jobAlertEmail(job, user.firstName) });
-        notified += 1;
-      } catch (err) {
-        logger.error('Job alert email failed', { jobId, userId: user.userId, err: String(err) });
+
+      // Email — opt-out respected; undefined preference defaults to on.
+      if (user.email && user.preferences?.notifyByEmail !== false) {
+        try {
+          await email.send({ to: user.email, ...jobAlertEmail(job, user.firstName) });
+          notified += 1;
+        } catch (err) {
+          logger.error('Job alert email failed', { jobId, userId: user.userId, err: String(err) });
+        }
+      }
+
+      // WhatsApp — additional channel, opt-IN only (TRX-61). No-op while the
+      // sender is dormant, so this is inert until credentials are configured.
+      const wa = user.preferences?.whatsappNumber;
+      if (whatsapp.configured && user.preferences?.notifyByWhatsApp && wa) {
+        try {
+          await whatsapp.send(jobAlertWhatsApp(job, wa));
+          notifiedWhatsApp += 1;
+        } catch (err) {
+          logger.error('Job alert WhatsApp failed', { jobId, userId: user.userId, err: String(err) });
+        }
       }
     }
     cursor = page.lastKey;
   } while (cursor);
 
-  logger.info('Job alerts processed', { jobId, scanned, notified });
+  logger.info('Job alerts processed', { jobId, scanned, notified, notifiedWhatsApp });
 }

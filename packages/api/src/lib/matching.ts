@@ -7,6 +7,9 @@ const networkLinks = new NetworkLinksRepository();
 
 /** Distil a stored `Job` into the facts the matcher filters on. */
 export function jobToMatchInput(job: Job): JobMatchInput {
+  // Every job belongs to a tenant and reaches ONLY that tenant's enabled
+  // network (TRX-78) — no exceptions. A repairer must be enrolled in the
+  // tenant's network (admin-managed, TRX-23) to receive its jobs.
   return {
     postcode: job.location?.postcode ?? '',
     ...(job.vehicleSummary?.vehicleSize
