@@ -20,9 +20,16 @@ export interface WhatsAppMessage {
   to: string;
   /**
    * Ordered body variables that fill the approved template's {{1}},{{2}},…
-   * placeholders. The template itself is provider config (Twilio Content SID).
+   * placeholders. Used when a template (Twilio Content SID) is configured —
+   * required for business-initiated messages in production.
    */
   parameters: string[];
+  /**
+   * Fully-rendered plain text, used as a freeform fallback when NO template is
+   * configured (e.g. the Twilio sandbox, or inside the 24-hour customer-service
+   * window). Production alerts go via the template, not this.
+   */
+  body: string;
 }
 
 export interface WhatsAppSender {
@@ -42,30 +49,35 @@ class TwilioWhatsAppSender implements WhatsAppSender {
     private readonly accountSid: string,
     private readonly authToken: string,
     private readonly fromNumber: string,
+    /** Approved template Content SID (HX…). Empty → send freeform `body`. */
     private readonly templateSid: string,
   ) {}
 
   async send(message: WhatsAppMessage): Promise<void> {
     const url = `https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
-    // Twilio ContentVariables maps the template's numbered placeholders to values.
-    const variables = Object.fromEntries(message.parameters.map((v, i) => [String(i + 1), v]));
-    const body = new URLSearchParams({
+    const params: Record<string, string> = {
       To: `whatsapp:${message.to}`,
       From: `whatsapp:${this.fromNumber}`,
-      ContentSid: this.templateSid,
-      ContentVariables: JSON.stringify(variables),
-    });
+    };
+    if (this.templateSid) {
+      // Template path (production): ContentVariables maps the numbered placeholders.
+      params['ContentSid'] = this.templateSid;
+      params['ContentVariables'] = JSON.stringify(Object.fromEntries(message.parameters.map((v, i) => [String(i + 1), v])));
+    } else {
+      // Freeform path (sandbox / within the 24h window): plain body text.
+      params['Body'] = message.body;
+    }
     const auth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
     const res = await fetch(url, {
       method: 'POST',
       headers: { authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded' },
-      body,
+      body: new URLSearchParams(params),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       throw new Error(`Twilio WhatsApp send failed (${res.status}): ${detail.slice(0, 300)}`);
     }
-    logger.info('WhatsApp message sent (Twilio)', { to: message.to });
+    logger.info('WhatsApp message sent (Twilio)', { to: message.to, mode: this.templateSid ? 'template' : 'freeform' });
   }
 }
 
@@ -91,8 +103,10 @@ export function getWhatsAppSender(): WhatsAppSender {
   const accountSid = process.env['TWILIO_ACCOUNT_SID'];
   const authToken = process.env['TWILIO_AUTH_TOKEN'];
   const fromNumber = process.env['TWILIO_WHATSAPP_FROM'];
-  const templateSid = process.env['TWILIO_WHATSAPP_TEMPLATE_SID'];
-  sender = accountSid && authToken && fromNumber && templateSid
+  // Template SID is OPTIONAL: with it we send an approved template (required in
+  // production); without it we send freeform (the sandbox / 24h window).
+  const templateSid = process.env['TWILIO_WHATSAPP_TEMPLATE_SID'] ?? '';
+  sender = accountSid && authToken && fromNumber
     ? new TwilioWhatsAppSender(accountSid, authToken, fromNumber, templateSid)
     : new NoopWhatsAppSender();
   return sender;
@@ -114,5 +128,11 @@ export function jobAlertWhatsApp(job: Job, to: string): WhatsAppMessage {
   const v = job.vehicleSummary;
   const vehicle = [v?.year, v?.make, v?.model].filter(Boolean).join(' ') || 'A vehicle';
   const location = job.location?.postcode ?? 'your area';
-  return { to, parameters: [vehicle, location, money(job.indicativeCost), money(job.introductionFee)] };
+  const cost = money(job.indicativeCost);
+  const fee = money(job.introductionFee);
+  return {
+    to,
+    parameters: [vehicle, location, cost, fee],
+    body: `New job on The Repair XChange: ${vehicle} in ${location}. Indicative ${cost}, match fee ${fee} on accept. Jobs are first-come, first-served — open the app to accept.`,
+  };
 }

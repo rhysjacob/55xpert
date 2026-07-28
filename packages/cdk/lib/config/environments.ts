@@ -43,8 +43,14 @@ export interface EnvironmentConfig {
   twilioAccountSid: string;
   /** Twilio WhatsApp sender number in E.164, e.g. +14155238886. */
   twilioWhatsAppFrom: string;
-  /** Approved WhatsApp template's Twilio Content SID (HX…). */
+  /** Approved WhatsApp template's Twilio Content SID (HX…). Blank → freeform (sandbox). */
   twilioWhatsAppTemplateSid: string;
+  /**
+   * Secrets Manager secret NAME holding the Twilio Auth Token (plain string).
+   * Blank → channel dormant. Injected into Lambdas as TWILIO_AUTH_TOKEN via a
+   * CloudFormation dynamic reference — never stored in config/source.
+   */
+  twilioAuthTokenSecretName: string;
   /**
    * Stripe EventBridge partner event source name (e.g.
    * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
@@ -87,6 +93,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     twilioAccountSid: '',
     twilioWhatsAppFrom: '',
     twilioWhatsAppTemplateSid: '',
+    twilioAuthTokenSecretName: '',
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
@@ -118,6 +125,7 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     twilioAccountSid: '',
     twilioWhatsAppFrom: '',
     twilioWhatsAppTemplateSid: '',
+    twilioAuthTokenSecretName: '',
     stripeEventSourceName: '',
     stripePriceId: '',
   },
