@@ -113,11 +113,21 @@ export class ApiStack extends cdk.Stack {
       LEADS_EMAIL: config.leadsEmail,
       EXPERT_QUEUE_EMAIL: config.expertQueueEmail,
       ADMIN_URL: config.adminUrl,
-      // WhatsApp via Twilio (TRX-61) — non-secret config; blank keeps it dormant.
-      // TWILIO_AUTH_TOKEN is injected from Secrets Manager at go-live, not here.
-      TWILIO_ACCOUNT_SID: config.twilioAccountSid,
-      TWILIO_WHATSAPP_FROM: config.twilioWhatsAppFrom,
+      // WhatsApp via Twilio (TRX-61). Credentials never live in source: the
+      // identifiers come from a Secrets Manager JSON secret and the API-key
+      // secret from another — all resolved at deploy via CloudFormation dynamic
+      // references. Blank secret names keep the channel dormant.
       TWILIO_WHATSAPP_TEMPLATE_SID: config.twilioWhatsAppTemplateSid,
+      ...(config.twilioConfigSecretName
+        ? {
+            TWILIO_ACCOUNT_SID: `{{resolve:secretsmanager:${config.twilioConfigSecretName}:SecretString:accountSid}}`,
+            TWILIO_API_KEY_SID: `{{resolve:secretsmanager:${config.twilioConfigSecretName}:SecretString:apiKeySid}}`,
+            TWILIO_WHATSAPP_FROM: `{{resolve:secretsmanager:${config.twilioConfigSecretName}:SecretString:from}}`,
+          }
+        : {}),
+      ...(config.twilioAuthTokenSecretName
+        ? { TWILIO_AUTH_TOKEN: `{{resolve:secretsmanager:${config.twilioAuthTokenSecretName}:SecretString}}` }
+        : {}),
       AI_PROVIDER: config.aiProvider,
       AI_MODEL_ID: config.aiModelId,
       WARRANTY_SCHEME: config.warrantyScheme,
@@ -254,6 +264,7 @@ export class ApiStack extends cdk.Stack {
     // Post-acceptance "refer to expert" queries (TRX-57).
     addRoute('RepairerJobQueryCreate', 'repairers/job-query-create.ts', apigw.HttpMethod.POST, '/api/v1/repairer/jobs/{jobId}/queries');
     addRoute('RepairerJobQueriesList', 'repairers/job-queries-list.ts', apigw.HttpMethod.GET, '/api/v1/repairer/jobs/{jobId}/queries');
+    addRoute('AdminWhatsAppTest', 'admin/whatsapp-test.ts', apigw.HttpMethod.POST, '/api/v1/admin/whatsapp-test');
     addRoute('AdminQueriesList', 'admin/queries-list.ts', apigw.HttpMethod.GET, '/api/v1/admin/queries');
     // Responding emails the repairer directly (best-effort), so grant SES send.
     const queryRespond = addRoute('AdminQueryRespond', 'admin/query-respond.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/queries/{queryId}');
