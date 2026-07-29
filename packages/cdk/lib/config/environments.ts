@@ -86,10 +86,12 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     leadsEmail: 'rhys.jacob@d55.co.uk',
     expertQueueEmail: 'rhys.jacob@d55.co.uk',
     adminUrl: 'https://d1pqg5zsx4s9wp.cloudfront.net',
-    // Twilio WhatsApp (dev sandbox). Identifiers + secret both in Secrets
-    // Manager; only the secret NAMES live here. Blank template SID → freeform.
-    twilioConfigSecretName: 'corexpert/dev/twilio-config',
-    twilioAuthTokenSecretName: 'corexpert/dev/twilio-api-key-secret',
+    // Twilio WhatsApp — dormant until a Content template exists (this account
+    // requires a template; freeform is blocked). Secrets are ready in Secrets
+    // Manager (corexpert/dev/twilio-config + …/twilio-api-key-secret); to go
+    // live, restore these names + set twilioWhatsAppTemplateSid, redeploy.
+    twilioConfigSecretName: '',
+    twilioAuthTokenSecretName: '',
     twilioWhatsAppTemplateSid: '',
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
