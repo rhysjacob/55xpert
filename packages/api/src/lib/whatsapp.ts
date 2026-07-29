@@ -47,13 +47,18 @@ class TwilioWhatsAppSender implements WhatsAppSender {
   readonly configured = true;
   constructor(
     private readonly accountSid: string,
-    private readonly authToken: string,
+    /** Basic-auth password: an API Key secret (preferred) or the account Auth Token. */
+    private readonly authSecret: string,
     private readonly fromNumber: string,
     /** Approved template Content SID (HX…). Empty → send freeform `body`. */
     private readonly templateSid: string,
+    /** API Key SID (SK…) used as the auth username; falls back to the account SID. */
+    private readonly apiKeySid?: string,
   ) {}
 
   async send(message: WhatsAppMessage): Promise<void> {
+    // URL is always keyed on the ACCOUNT SID; auth is the API Key (SK…) when set,
+    // else the account SID — paired with the secret (API Key secret / Auth Token).
     const url = `https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
     const params: Record<string, string> = {
       To: `whatsapp:${message.to}`,
@@ -67,7 +72,7 @@ class TwilioWhatsAppSender implements WhatsAppSender {
       // Freeform path (sandbox / within the 24h window): plain body text.
       params['Body'] = message.body;
     }
-    const auth = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
+    const auth = Buffer.from(`${this.apiKeySid || this.accountSid}:${this.authSecret}`).toString('base64');
     const res = await fetch(url, {
       method: 'POST',
       headers: { authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded' },
@@ -101,13 +106,15 @@ let sender: WhatsAppSender | undefined;
 export function getWhatsAppSender(): WhatsAppSender {
   if (sender) return sender;
   const accountSid = process.env['TWILIO_ACCOUNT_SID'];
-  const authToken = process.env['TWILIO_AUTH_TOKEN'];
+  // The Basic-auth secret: an API Key secret (preferred) or the account Auth Token.
+  const authSecret = process.env['TWILIO_AUTH_TOKEN'];
+  const apiKeySid = process.env['TWILIO_API_KEY_SID'] || undefined;
   const fromNumber = process.env['TWILIO_WHATSAPP_FROM'];
   // Template SID is OPTIONAL: with it we send an approved template (required in
   // production); without it we send freeform (the sandbox / 24h window).
   const templateSid = process.env['TWILIO_WHATSAPP_TEMPLATE_SID'] ?? '';
-  sender = accountSid && authToken && fromNumber
-    ? new TwilioWhatsAppSender(accountSid, authToken, fromNumber, templateSid)
+  sender = accountSid && authSecret && fromNumber
+    ? new TwilioWhatsAppSender(accountSid, authSecret, fromNumber, templateSid, apiKeySid)
     : new NoopWhatsAppSender();
   return sender;
 }

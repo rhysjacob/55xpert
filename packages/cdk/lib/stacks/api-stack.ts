@@ -113,12 +113,18 @@ export class ApiStack extends cdk.Stack {
       LEADS_EMAIL: config.leadsEmail,
       EXPERT_QUEUE_EMAIL: config.expertQueueEmail,
       ADMIN_URL: config.adminUrl,
-      // WhatsApp via Twilio (TRX-61) — non-secret config; blank keeps it dormant.
-      TWILIO_ACCOUNT_SID: config.twilioAccountSid,
-      TWILIO_WHATSAPP_FROM: config.twilioWhatsAppFrom,
+      // WhatsApp via Twilio (TRX-61). Credentials never live in source: the
+      // identifiers come from a Secrets Manager JSON secret and the API-key
+      // secret from another — all resolved at deploy via CloudFormation dynamic
+      // references. Blank secret names keep the channel dormant.
       TWILIO_WHATSAPP_TEMPLATE_SID: config.twilioWhatsAppTemplateSid,
-      // Auth token pulled from Secrets Manager via a CloudFormation dynamic
-      // reference (resolved at deploy; never in source). Omitted when unset.
+      ...(config.twilioConfigSecretName
+        ? {
+            TWILIO_ACCOUNT_SID: `{{resolve:secretsmanager:${config.twilioConfigSecretName}:SecretString:accountSid}}`,
+            TWILIO_API_KEY_SID: `{{resolve:secretsmanager:${config.twilioConfigSecretName}:SecretString:apiKeySid}}`,
+            TWILIO_WHATSAPP_FROM: `{{resolve:secretsmanager:${config.twilioConfigSecretName}:SecretString:from}}`,
+          }
+        : {}),
       ...(config.twilioAuthTokenSecretName
         ? { TWILIO_AUTH_TOKEN: `{{resolve:secretsmanager:${config.twilioAuthTokenSecretName}:SecretString}}` }
         : {}),

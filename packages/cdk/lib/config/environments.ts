@@ -36,21 +36,17 @@ export interface EnvironmentConfig {
   /** Admin SPA base URL, used in expert-query notification links (TRX-57). */
   adminUrl: string;
   /**
-   * WhatsApp job-alert channel via Twilio (TRX-61) — non-secret config. Dormant
-   * while blank; the TWILIO_AUTH_TOKEN is injected separately from Secrets
-   * Manager at go-live (never in config). See docs/whatsapp-feasibility.md.
+   * WhatsApp via Twilio (TRX-61). To keep credentials out of source, all Twilio
+   * IDENTIFIERS live in a Secrets Manager secret (JSON: accountSid, apiKeySid,
+   * from) referenced by NAME here, and the API-key SECRET in a second secret.
+   * Blank → channel dormant. Injected into Lambdas via CloudFormation dynamic
+   * references at deploy. See docs/whatsapp-feasibility.md.
    */
-  twilioAccountSid: string;
-  /** Twilio WhatsApp sender number in E.164, e.g. +14155238886. */
-  twilioWhatsAppFrom: string;
+  twilioConfigSecretName: string;
+  /** Secrets Manager secret NAME holding the Twilio API-key secret (plain string). */
+  twilioAuthTokenSecretName: string;
   /** Approved WhatsApp template's Twilio Content SID (HX…). Blank → freeform (sandbox). */
   twilioWhatsAppTemplateSid: string;
-  /**
-   * Secrets Manager secret NAME holding the Twilio Auth Token (plain string).
-   * Blank → channel dormant. Injected into Lambdas as TWILIO_AUTH_TOKEN via a
-   * CloudFormation dynamic reference — never stored in config/source.
-   */
-  twilioAuthTokenSecretName: string;
   /**
    * Stripe EventBridge partner event source name (e.g.
    * `aws.partner/stripe.com/…`), created out-of-band in the Stripe dashboard.
@@ -90,10 +86,11 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     leadsEmail: 'rhys.jacob@d55.co.uk',
     expertQueueEmail: 'rhys.jacob@d55.co.uk',
     adminUrl: 'https://d1pqg5zsx4s9wp.cloudfront.net',
-    twilioAccountSid: '',
-    twilioWhatsAppFrom: '',
+    // Twilio WhatsApp (dev sandbox). Identifiers + secret both in Secrets
+    // Manager; only the secret NAMES live here. Blank template SID → freeform.
+    twilioConfigSecretName: 'corexpert/dev/twilio-config',
+    twilioAuthTokenSecretName: 'corexpert/dev/twilio-api-key-secret',
     twilioWhatsAppTemplateSid: '',
-    twilioAuthTokenSecretName: '',
     // Stripe (test-mode) EventBridge partner source — associated with an event
     // bus by the CDK; routes checkout events to the processor Lambda.
     stripeEventSourceName: 'aws.partner/stripe.com/ed_test_61V5Jcxbm7cBfrssA16V4ceY2fE9Q0op8oGOADAC8LDM',
@@ -122,10 +119,9 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     leadsEmail: 'hello@repairxchange.co.uk',
     expertQueueEmail: 'experts@repairxchange.co.uk',
     adminUrl: 'https://admin.repairxchange.co.uk',
-    twilioAccountSid: '',
-    twilioWhatsAppFrom: '',
-    twilioWhatsAppTemplateSid: '',
+    twilioConfigSecretName: '',
     twilioAuthTokenSecretName: '',
+    twilioWhatsAppTemplateSid: '',
     stripeEventSourceName: '',
     stripePriceId: '',
   },
