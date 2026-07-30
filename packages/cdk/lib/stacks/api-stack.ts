@@ -259,27 +259,30 @@ export class ApiStack extends cdk.Stack {
     // Grant Bedrock InvokeModel to the worker. The model is invoked via a
     // cross-region inference profile (e.g. eu.anthropic.claude-sonnet-4-6),
     // which requires permission on both the inference-profile resource and the
-    // underlying foundation models in every region the profile may route to.
+    // underlying foundation models in the regions the EU profile routes to.
+    const bedrockRegions = ['eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1'];
     triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
-        `arn:aws:bedrock:*:${this.account}:inference-profile/${config.aiModelId}`,
-        'arn:aws:bedrock:*::foundation-model/anthropic.claude-*',
+        // The configured default model's inference profile.
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}:${this.account}:inference-profile/${config.aiModelId}`),
+        // The underlying foundation models the profile may route to.
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-sonnet-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-haiku-*`),
       ],
     }));
 
-    // The worker may invoke a UI-selected model when debug is on, so it must be
-    // able to invoke any allow-listed Claude inference profile or Nova model
-    // (Nova is invoked by bare foundation-model id via the Converse API), and to
-    // read the model-config SSM parameters. Some models (Fable 5) publish only a
-    // global.* profile in this region, so both prefixes are granted.
+    // The worker may invoke a UI-selected model when debug is on. Grant the
+    // allow-listed Claude inference profiles (eu.* and global.*) and Nova
+    // foundation models, restricted to EU regions only.
     triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
-        `arn:aws:bedrock:*:${this.account}:inference-profile/eu.anthropic.claude-*`,
-        `arn:aws:bedrock:*:${this.account}:inference-profile/global.anthropic.claude-*`,
-        'arn:aws:bedrock:*::foundation-model/amazon.nova-*',
-        `arn:aws:bedrock:*:${this.account}:inference-profile/*.amazon.nova-*`,
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}:${this.account}:inference-profile/eu.anthropic.claude-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}:${this.account}:inference-profile/global.anthropic.claude-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/amazon.nova-lite-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/amazon.nova-pro-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}:${this.account}:inference-profile/*.amazon.nova-*`),
       ],
     }));
     modelDebugToggle.grantRead(triageWorker.function);
