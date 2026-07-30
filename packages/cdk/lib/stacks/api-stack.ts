@@ -70,6 +70,17 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
+    // Default-stage throttling: protects all routes (including unauthenticated
+    // ones like /health, /leads, /ingest) from abuse. These limits are per-IP
+    // on HTTP APIs. Tune upward once real traffic patterns are established.
+    const defaultStage = this.api.defaultStage?.node.defaultChild as apigw.CfnStage | undefined;
+    if (defaultStage) {
+      defaultStage.addPropertyOverride('DefaultRouteSettings', {
+        ThrottlingBurstLimit: 50,
+        ThrottlingRateLimit: 100,
+      });
+    }
+
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
 
     // ─── Table groups for least-privilege IAM grants ───────────────────────
