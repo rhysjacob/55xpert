@@ -109,14 +109,15 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     oneAutoBaseUrl: 'https://api.oneautoapi.com',
     warrantyScheme: 'company-2025',
     defaultWarrantyCompanyId: 'demotenant',
-    // TODO: set to the production repairer domain once it exists.
-    frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
-    // TODO: replace with the production SPA domains once custom domains exist.
-    appOrigins: [
-      'https://d3azgpmicty14y.cloudfront.net',
-      'https://d1pyyy434cv4q3.cloudfront.net',
-      'https://d1pqg5zsx4s9wp.cloudfront.net',
-    ],
+    // Production repairer domain — Stripe checkout redirects here.
+    // MUST be updated to the real custom domain before go-live.
+    frontendUrl: process.env['PROD_FRONTEND_URL'] ?? '',
+    // Production SPA domains. MUST be set before go-live — a deploy with an
+    // empty list will reject all cross-origin requests (fail-closed).
+    appOrigins: (process.env['PROD_APP_ORIGINS'] ?? '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
     notificationsFromEmail: 'notify@repairxchange.co.uk',
     leadsEmail: 'hello@repairxchange.co.uk',
     expertQueueEmail: 'experts@repairxchange.co.uk',
@@ -124,7 +125,9 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     twilioConfigSecretName: '',
     twilioAuthTokenSecretName: '',
     twilioWhatsAppTemplateSid: '',
-    stripeEventSourceName: '',
-    stripePriceId: '',
+    // Stripe live-mode partner event source + price. MUST be configured before
+    // go-live or subscription/payment flows will be inert.
+    stripeEventSourceName: process.env['PROD_STRIPE_EVENT_SOURCE'] ?? '',
+    stripePriceId: process.env['PROD_STRIPE_PRICE_ID'] ?? '',
   },
 };
