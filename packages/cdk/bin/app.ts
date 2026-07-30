@@ -16,6 +16,21 @@ if (!config) {
   throw new Error(`Unknown environment: ${stage}. Valid: ${Object.keys(ENVIRONMENTS).join(', ')}`);
 }
 
+// Guard: prod deploys must have critical config populated — fail early with a
+// clear message rather than deploying with broken CORS / empty Stripe config.
+if (config.stage === 'prod') {
+  const missing: string[] = [];
+  if (!config.frontendUrl) missing.push('PROD_FRONTEND_URL');
+  if (config.appOrigins.length === 0) missing.push('PROD_APP_ORIGINS');
+  if (!config.stripePriceId) missing.push('PROD_STRIPE_PRICE_ID');
+  if (missing.length > 0) {
+    throw new Error(
+      `Production deploy requires these env vars: ${missing.join(', ')}. ` +
+        'Set them before running cdk deploy --context env=prod.',
+    );
+  }
+}
+
 const env = {
   account: process.env['CDK_DEFAULT_ACCOUNT'],
   region: config.region,
