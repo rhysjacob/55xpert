@@ -57,7 +57,7 @@ export class ApiStack extends cdk.Stack {
     this.api = new apigw.HttpApi(this, 'HttpApi', {
       apiName: `corexpert-${config.stage}-api`,
       corsPreflight: {
-        allowOrigins: ['*'],
+        allowOrigins: config.appOrigins,
         allowMethods: [
           apigw.CorsHttpMethod.GET,
           apigw.CorsHttpMethod.POST,
