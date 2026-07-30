@@ -4,10 +4,11 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { withErrorHandler } from '../../middleware/error-handler';
-import { getAuthContext } from '../../middleware/auth';
+import { getAuthContext, requireRole } from '../../middleware/auth';
 import { parseBody, getPathParam } from '../../middleware/validation';
 import { ok } from '../../lib/response';
-import { ValidationError } from '@corexpert/core';
+import { ValidationError, NotFoundError, ForbiddenError } from '@corexpert/core';
+import { CasesRepository } from '@corexpert/db';
 
 const BUCKET = process.env['IMAGE_BUCKET'] ?? '';
 const PRESIGN_EXPIRY = 300; // 5 minutes
@@ -29,14 +30,26 @@ const presignSchema = z.object({
 });
 
 const s3 = new S3Client({});
+const cases = new CasesRepository();
 
 async function presignedUrlHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const auth = getAuthContext(event);
+  requireRole(auth, 'CONSUMER');
+
   const caseId = getPathParam(event, 'caseId');
   const { imageType, mimeType, originalFilename } = parseBody(event, presignSchema);
 
   if (!BUCKET) {
     throw new ValidationError('Image bucket not configured');
+  }
+
+  // Verify case ownership: only the consumer who created the case may upload.
+  const caseData = await cases.getById(caseId);
+  if (!caseData) {
+    throw new NotFoundError('Case', caseId);
+  }
+  if (caseData.userId !== auth.userId) {
+    throw new ForbiddenError('Not authorized to upload to this case');
   }
 
   const imageId = randomUUID();
