@@ -70,16 +70,21 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    // Default-stage throttling: protects all routes (including unauthenticated
-    // ones like /health, /leads, /ingest) from abuse. These limits are per-IP
-    // on HTTP APIs. Tune upward once real traffic patterns are established.
+    // Default-stage throttling: caps all routes (including unauthenticated ones
+    // like /health, /leads, /ingest) so a runaway client can't rack up cost.
+    // NOTE: these are stage-wide aggregate limits, NOT per-IP — a single abusive
+    // caller can consume the whole budget and 429 everyone else. Per-IP limiting
+    // needs WAF rate rules in front of the API. Burst is the token-bucket
+    // capacity so it must be >= the steady rate, else bursts 429 immediately.
+    // Tune upward once real traffic patterns are established.
     const defaultStage = this.api.defaultStage?.node.defaultChild as apigw.CfnStage | undefined;
-    if (defaultStage) {
-      defaultStage.addPropertyOverride('DefaultRouteSettings', {
-        ThrottlingBurstLimit: 50,
-        ThrottlingRateLimit: 100,
-      });
+    if (!defaultStage) {
+      throw new Error('HttpApi default stage not found — cannot apply throttling.');
     }
+    defaultStage.addPropertyOverride('DefaultRouteSettings', {
+      ThrottlingBurstLimit: 200,
+      ThrottlingRateLimit: 100,
+    });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
 
@@ -210,7 +215,9 @@ export class ApiStack extends cdk.Stack {
 
     // ===== Cases =====
     addRoute('CasesCreate', 'cases/create.ts', apigw.HttpMethod.POST, '/api/v1/cases', { writeTables: [props.casesTable] });
-    addRoute('CasesGet', 'cases/get.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}', { readTables: [props.casesTable] });
+    // s3: presigns GET URLs for the case photos (lib/image-urls). Without the
+    // grant the handler still returns a URL, but S3 403s the browser.
+    addRoute('CasesGet', 'cases/get.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}', { readTables: [props.casesTable], s3: true });
     addRoute('CasesList', 'cases/list.ts', apigw.HttpMethod.GET, '/api/v1/cases', { readTables: [props.casesTable] });
     addRoute('CasesUpdate', 'cases/update.ts', apigw.HttpMethod.PATCH, '/api/v1/cases/{caseId}', { writeTables: [props.casesTable] });
 
@@ -267,14 +274,21 @@ export class ApiStack extends cdk.Stack {
         // The configured default model's inference profile.
         ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}:${this.account}:inference-profile/${config.aiModelId}`),
         // The underlying foundation models the profile may route to.
+        // Families offered by the model picker (core/constants/models.ts):
+        // sonnet, haiku, opus and fable. Keep in step with that catalogue.
         ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-sonnet-*`),
         ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-haiku-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-opus-*`),
+        ...bedrockRegions.map((r) => `arn:aws:bedrock:${r}::foundation-model/anthropic.claude-fable-*`),
       ],
     }));
 
     // The worker may invoke a UI-selected model when debug is on. Grant the
     // allow-listed Claude inference profiles (eu.* and global.*) and Nova
     // foundation models, restricted to EU regions only.
+    // Caveat: a global.* profile may route outside the EU, and the
+    // foundation-model grants above are EU-only — so those models can still be
+    // denied. That is intentional: widening would break EU data residency.
     triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
@@ -297,7 +311,7 @@ export class ApiStack extends cdk.Stack {
     triageSubmit.function.addEnvironment('TRIAGE_WORKER_FUNCTION', triageWorker.function.functionName);
     triageWorker.function.grantInvoke(triageSubmit.function);
 
-    addRoute('TriageResult', 'triage/result.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}/triage', { readTables: [props.casesTable] });
+    addRoute('TriageResult', 'triage/result.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}/triage', { readTables: [props.casesTable], s3: true });
 
     // ===== Jobs (Marketplace) =====
     addRoute('JobPublish', 'jobs/publish.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/publish', {
@@ -310,6 +324,7 @@ export class ApiStack extends cdk.Stack {
     });
     addRoute('JobsGet', 'jobs/get.ts', apigw.HttpMethod.GET, '/api/v1/jobs/{jobId}', {
       readTables: [props.jobsTable, props.casesTable],
+      s3: true,
     });
     const jobsAccept = addRoute('JobsAccept', 'jobs/accept.ts', apigw.HttpMethod.POST, '/api/v1/jobs/{jobId}/accept', {
       writeTables: [props.jobsTable, props.casesTable],
@@ -419,9 +434,11 @@ export class ApiStack extends cdk.Stack {
       readTables: [props.jobsTable],
     });
     // Repairer's own MI (TRX-67).
+    // orgs + networkLinks: resolveMatchTarget (lib/matching) reads both to work
+    // out which open jobs this repairer would match.
     addRoute('RepairerMI', 'repairers/mi.ts', apigw.HttpMethod.GET, '/api/v1/repairer/mi', {
       timeout: cdk.Duration.seconds(30),
-      readTables: [props.usersTable, props.jobsTable],
+      readTables: [props.usersTable, props.jobsTable, props.organisationsTable, props.networkLinksTable],
     });
     // Repairer self-manages their org's capability + coverage (TRX-18).
     addRoute('RepairerOrgGet', 'repairers/organisation.ts', apigw.HttpMethod.GET, '/api/v1/repairer/organisation', {
@@ -473,8 +490,9 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminUpdateRepairer', 'admin/update-repairer.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/repairers/{repairerId}', {
       writeTables: [props.usersTable],
     });
+    // Counts every core table, payments included.
     addRoute('AdminDashboard', 'admin/dashboard.ts', apigw.HttpMethod.GET, '/api/v1/admin/dashboard', {
-      readTables: [props.casesTable, props.jobsTable, props.usersTable],
+      readTables: [props.casesTable, props.jobsTable, props.usersTable, props.paymentsTable],
     });
     addRoute('AdminLeads', 'admin/leads.ts', apigw.HttpMethod.GET, '/api/v1/admin/leads', {
       readTables: [props.leadsTable],
@@ -484,8 +502,10 @@ export class ApiStack extends cdk.Stack {
     addRoute('AdminComplaintsList', 'admin/complaints-list.ts', apigw.HttpMethod.GET, '/api/v1/admin/complaints', {
       readTables: [props.complaintsTable],
     });
+    // orgs: resolves the organisation named on the complaint.
     addRoute('AdminComplaintsCreate', 'admin/complaints-create.ts', apigw.HttpMethod.POST, '/api/v1/admin/complaints', {
       writeTables: [props.complaintsTable],
+      readTables: [props.organisationsTable],
     });
     addRoute('AdminComplaintsUpdate', 'admin/complaints-update.ts', apigw.HttpMethod.PATCH, '/api/v1/admin/complaints/{complaintId}', {
       writeTables: [props.complaintsTable],
@@ -493,12 +513,12 @@ export class ApiStack extends cdk.Stack {
     // Portfolio MI: funnel, trend, time-to-accept, financials, leaderboards (TRX-25/26/28/29).
     addRoute('AdminMI', 'admin/mi.ts', apigw.HttpMethod.GET, '/api/v1/admin/mi', {
       timeout: cdk.Duration.seconds(30),
-      readTables: [props.casesTable, props.jobsTable, props.usersTable, props.organisationsTable],
+      readTables: [props.casesTable, props.jobsTable, props.usersTable, props.complaintsTable],
     });
     // Coverage heatmap: job demand vs repairer coverage per area (TRX-30).
     addRoute('AdminCoverage', 'admin/coverage.ts', apigw.HttpMethod.GET, '/api/v1/admin/coverage', {
       timeout: cdk.Duration.seconds(30),
-      readTables: [props.jobsTable, props.organisationsTable],
+      readTables: [props.jobsTable, props.organisationsTable, props.usersTable],
     });
 
     // Admin: repairer organisations (TRX-37/49) + manual job push override (TRX-20).
@@ -557,12 +577,13 @@ export class ApiStack extends cdk.Stack {
     });
 
     // Admin: a company's repairer network — add/toggle links + list (TRX-78).
+    // warrantyCompanies: both verbs resolve the company before touching links.
     addRoute('AdminNetworkList', 'admin/network-links.ts', apigw.HttpMethod.GET, '/api/v1/admin/warranty-companies/{companyId}/network', {
-      readTables: [props.networkLinksTable, props.organisationsTable],
+      readTables: [props.networkLinksTable, props.organisationsTable, props.warrantyCompaniesTable],
     });
     addRoute('AdminNetworkUpsert', 'admin/network-links.ts', apigw.HttpMethod.PUT, '/api/v1/admin/warranty-companies/{companyId}/network', {
       writeTables: [props.networkLinksTable],
-      readTables: [props.organisationsTable],
+      readTables: [props.organisationsTable, props.warrantyCompaniesTable],
     });
     // Admin: issue/rotate a company's ingestion API key (TRX-14/79).
     addRoute('AdminIngestKey', 'admin/warranty-company-key.ts', apigw.HttpMethod.POST, '/api/v1/admin/warranty-companies/{companyId}/ingest-key', {

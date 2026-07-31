@@ -23,6 +23,7 @@ if (config.stage === 'prod') {
   if (!config.frontendUrl) missing.push('PROD_FRONTEND_URL');
   if (config.appOrigins.length === 0) missing.push('PROD_APP_ORIGINS');
   if (!config.stripePriceId) missing.push('PROD_STRIPE_PRICE_ID');
+  if (!config.stripeEventSourceName) missing.push('PROD_STRIPE_EVENT_SOURCE');
   if (missing.length > 0) {
     throw new Error(
       `Production deploy requires these env vars: ${missing.join(', ')}. ` +
