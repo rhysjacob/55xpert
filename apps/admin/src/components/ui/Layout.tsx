@@ -53,29 +53,11 @@ export function Layout({ children }: { children: ReactNode }) {
               <Link to="/" className="text-xl font-bold text-indigo-600 whitespace-nowrap">
                 Repair XChange <span className="font-normal text-gray-400">Admin</span>
               </Link>
-              {/* Twelve links only fit once the viewport is genuinely wide; below
-                  that they collapse into the menu button on the right. */}
-              <div className="hidden xl:flex gap-4">
-                {NAV.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end ?? false}
-                    className={({ isActive }) =>
-                      `text-sm whitespace-nowrap ${
-                        isActive ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-gray-900'
-                      }`
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
             </div>
 
             <div className="flex items-center gap-4">
               {user && (
-                <div className="hidden xl:flex items-center gap-4 min-w-0">
+                <div className="hidden sm:flex items-center gap-4 min-w-0">
                   <span className="text-sm text-gray-600 truncate max-w-[220px]" title={user.email}>
                     {user.email}
                   </span>
@@ -88,13 +70,15 @@ export function Layout({ children }: { children: ReactNode }) {
                 </div>
               )}
 
+              {/* The menu is the only navigation, at every width — twelve links
+                  never sat comfortably inline, even on a wide monitor. */}
               <button
                 type="button"
                 onClick={() => setMenuOpen((open) => !open)}
                 aria-expanded={menuOpen}
-                aria-controls="admin-mobile-menu"
+                aria-controls="admin-menu"
                 aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-                className="xl:hidden -mr-2 inline-flex items-center justify-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="-mr-2 inline-flex items-center justify-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 <svg
                   className="h-6 w-6"
@@ -116,8 +100,10 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {menuOpen && (
-          <div id="admin-mobile-menu" className="xl:hidden border-t border-gray-200 bg-white">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-1">
+          <div id="admin-menu" className="border-t border-gray-200 bg-white">
+            {/* Wider viewports get the links in columns rather than one long
+                twelve-item column running down the page. */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 grid gap-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {NAV.map((item) => (
                 <NavLink
                   key={item.to}
@@ -136,7 +122,7 @@ export function Layout({ children }: { children: ReactNode }) {
               ))}
             </div>
             {user && (
-              <div className="border-t border-gray-200">
+              <div className="border-t border-gray-200 sm:hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
                   <span className="text-sm text-gray-600 truncate" title={user.email}>
                     {user.email}
