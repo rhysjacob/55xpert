@@ -7,6 +7,7 @@ import type * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
@@ -84,6 +85,41 @@ export class ApiStack extends cdk.Stack {
     defaultStage.addPropertyOverride('DefaultRouteSettings', {
       ThrottlingBurstLimit: 200,
       ThrottlingRateLimit: 100,
+    });
+
+    // Access logs. Without these, a failing request is invisible: the Lambda
+    // logs show nothing when the request never reaches an integration (auth
+    // rejection, unmatched route, throttle), so there is no way to tell what
+    // a client actually asked for. integrationErrorMessage and the authorizer
+    // fields are the ones that pay for themselves when debugging a 4xx.
+    const accessLogs = new logs.LogGroup(this, 'ApiAccessLogs', {
+      logGroupName: `/aws/apigateway/corexpert-${config.stage}-api`,
+      retention:
+        config.removalPolicy === 'destroy'
+          ? logs.RetentionDays.ONE_MONTH
+          : logs.RetentionDays.SIX_MONTHS,
+      removalPolicy:
+        config.removalPolicy === 'destroy'
+          ? cdk.RemovalPolicy.DESTROY
+          : cdk.RemovalPolicy.RETAIN,
+    });
+    defaultStage.addPropertyOverride('AccessLogSettings', {
+      DestinationArn: accessLogs.logGroupArn,
+      Format: JSON.stringify({
+        requestId: '$context.requestId',
+        requestTime: '$context.requestTime',
+        httpMethod: '$context.httpMethod',
+        routeKey: '$context.routeKey',
+        path: '$context.path',
+        status: '$context.status',
+        responseLatency: '$context.responseLatency',
+        integrationStatus: '$context.integration.status',
+        integrationErrorMessage: '$context.integrationErrorMessage',
+        authorizerError: '$context.authorizer.error',
+        userId: '$context.authorizer.claims.sub',
+        sourceIp: '$context.identity.sourceIp',
+        userAgent: '$context.identity.userAgent',
+      }),
     });
 
     const handlersPath = path.join(__dirname, '../../../api/src/handlers');
@@ -267,7 +303,19 @@ export class ApiStack extends cdk.Stack {
     // cross-region inference profile (e.g. eu.anthropic.claude-sonnet-4-6),
     // which requires permission on both the inference-profile resource and the
     // underlying foundation models in the regions the EU profile routes to.
-    const bedrockRegions = ['eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1'];
+    // Every region the EU inference profiles route to. Verify with
+    // `aws bedrock get-inference-profile --inference-profile-identifier <id>`
+    // before trimming: a missing region surfaces only as an intermittent
+    // AccessDeniedException, when Bedrock happens to route there.
+    const bedrockRegions = [
+      'eu-west-1',
+      'eu-west-2',
+      'eu-west-3',
+      'eu-central-1',
+      'eu-north-1',
+      'eu-south-1',
+      'eu-south-2',
+    ];
     triageWorker.function.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
