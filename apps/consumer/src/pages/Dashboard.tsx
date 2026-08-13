@@ -5,6 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
+import { HeadingMotif } from '../branding/BrandMotif';
 import type { Case } from '@corexpert/core';
 
 interface CaseListResponse {
@@ -21,14 +22,17 @@ export function DashboardPage() {
   return (
     <Layout>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">My Assessments</h1>
+        <h1 className="flex items-center gap-3 text-2xl font-bold text-on-app">
+          <HeadingMotif />
+          My Assessments
+        </h1>
         <Link to="/cases/new">
           <Button>Start New Assessment</Button>
         </Link>
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <div className="text-center py-12 text-on-app-muted">Loading...</div>
       ) : !data?.items.length ? (
         <Card>
           <CardBody className="text-center py-12">

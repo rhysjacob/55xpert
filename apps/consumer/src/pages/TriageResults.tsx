@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
 import { humanize } from '@corexpert/core';
+import { HeadingMotif } from '../branding/BrandMotif';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
 
 interface TriageResponse {
@@ -74,7 +75,7 @@ export function TriageResultsPage() {
   if (isLoading) {
     return (
       <Layout>
-        <div className="text-center py-12 text-gray-500">Loading triage results...</div>
+        <div className="text-center py-12 text-on-app-muted">Loading triage results...</div>
       </Layout>
     );
   }
@@ -82,7 +83,7 @@ export function TriageResultsPage() {
   if (error || !data) {
     return (
       <Layout>
-        <div className="text-center py-12 text-red-500">
+        <div className="text-center py-12 text-on-app-danger">
           {error instanceof Error ? error.message : 'Failed to load results'}
         </div>
       </Layout>
@@ -94,9 +95,9 @@ export function TriageResultsPage() {
     return (
       <Layout>
         <div className="max-w-md mx-auto text-center py-16">
-          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-brand" />
-          <h1 className="text-xl font-semibold text-gray-900">Analysing your photos</h1>
-          <p className="mt-2 text-gray-500">
+          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 spinner-track border-t-brand" />
+          <h1 className="text-xl font-semibold text-on-app">Analysing your photos</h1>
+          <p className="mt-2 text-on-app-muted">
             Our AI is assessing the damage and estimating repair costs. This usually
             takes under a minute &mdash; the results will appear here automatically.
           </p>
@@ -109,8 +110,8 @@ export function TriageResultsPage() {
     return (
       <Layout>
         <div className="max-w-md mx-auto text-center py-16">
-          <h1 className="text-xl font-semibold text-gray-900">Assessment failed</h1>
-          <p className="mt-2 text-gray-500">
+          <h1 className="text-xl font-semibold text-on-app">Assessment failed</h1>
+          <p className="mt-2 text-on-app-muted">
             Something went wrong while analysing your photos. Please try submitting
             the case for assessment again.
           </p>
@@ -129,8 +130,11 @@ export function TriageResultsPage() {
       <div className="max-w-3xl mx-auto">
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Assessment Results</h1>
-            <p className="text-gray-500 mt-1">
+            <h1 className="flex items-center gap-3 text-2xl font-bold text-on-app">
+              <HeadingMotif />
+              Assessment Results
+            </h1>
+            <p className="text-on-app-muted mt-1">
               {data.referenceNo} | {data.vehicle?.make} {data.vehicle?.model}
             </p>
           </div>
@@ -252,7 +256,7 @@ export function TriageResultsPage() {
         {/* Outcome is automatic — no publish action for the consumer. */}
         <div className="flex flex-col items-center gap-3">
           {data.status === 'PUBLISHED' && (
-            <p className="text-center text-green-600 font-medium">
+            <p className="text-center text-on-app-success font-medium">
               Automatically published to The Repair Xchange — repairers can now see this job.
             </p>
           )}

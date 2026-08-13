@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
 import { useBrand } from '../../branding/useBrand';
+import { BrandWatermark } from '../../branding/BrandMotif';
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
@@ -17,7 +18,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const navLogo = (dark && brand.logoUrlOnDark) || brand.logoUrl;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    // `isolate` so the watermark's negative z-index puts it above this element's
+    // own background but still behind the nav and content.
+    <div className="relative isolate min-h-screen bg-app">
+      <BrandWatermark />
       <nav
         className={dark ? 'bg-brand' : 'bg-white border-b border-gray-200'}
         style={dark ? { backgroundColor: 'var(--brand-primary)' } : undefined}
@@ -74,12 +78,18 @@ export function Layout({ children }: { children: ReactNode }) {
 export function AuthLayout({ children }: { children: ReactNode }) {
   const brand = useBrand();
 
+  // On a gradient field the black lockup disappears, so use the reversed-out
+  // one — the same swap the dark nav makes.
+  const onGradient = brand.surface === 'gradient';
+  const logo = (onGradient && brand.logoUrlOnDark) || brand.logoUrl;
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+    <div className="relative isolate min-h-screen bg-app flex flex-col items-center justify-center px-4 py-12">
+      <BrandWatermark />
       <div className="mb-8 text-center">
-        {brand.logoUrl && (
+        {logo && (
           <img
-            src={brand.logoUrl}
+            src={logo}
             alt={brand.logoIsLockup ? brand.name : ''}
             className={
               brand.logoIsLockup
@@ -88,12 +98,18 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             }
           />
         )}
-        {/* A lockup already carries the name; repeating it below is noise. */}
-        {!brand.logoIsLockup && (
+        {/* A lockup already carries the name; repeating it below is noise. But
+            the strapline is the line their hero leads on, so on the gradient it
+            earns its place under the mark. */}
+        {!brand.logoIsLockup ? (
           <>
-            <h1 className="text-3xl font-bold text-brand">{brand.name}</h1>
-            <p className="text-gray-500 mt-1">{brand.tagline}</p>
+            <h1 className={`text-3xl font-bold ${onGradient ? 'text-white' : 'text-brand'}`}>
+              {brand.name}
+            </h1>
+            <p className="text-on-app-muted mt-1">{brand.tagline}</p>
           </>
+        ) : (
+          onGradient && <p className="text-on-app-muted mt-3 text-lg">{brand.tagline}</p>
         )}
       </div>
       <div className="w-full max-w-md">{children}</div>
