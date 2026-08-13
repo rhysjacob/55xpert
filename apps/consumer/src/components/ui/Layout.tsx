@@ -57,7 +57,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
         {brand.logoUrl && (
-          <img src={brand.logoUrl} alt="" className="mx-auto mb-4 h-28 w-28 object-contain" />
+          <img src={brand.logoUrl} alt="" className="mx-auto mb-4 h-44 w-44 object-contain" />
         )}
         <h1 className="text-3xl font-bold text-brand">{brand.name}</h1>
         <p className="text-gray-500 mt-1">{brand.tagline}</p>
