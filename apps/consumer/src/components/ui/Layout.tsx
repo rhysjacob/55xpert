@@ -98,18 +98,16 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             }
           />
         )}
-        {/* A lockup already carries the name; repeating it below is noise. But
-            the strapline is the line their hero leads on, so on the gradient it
-            earns its place under the mark. */}
-        {!brand.logoIsLockup ? (
+        {/* A lockup already carries the name, and the strapline under it reads
+            as marketing copy on what is really a sign-in form — so a lockup
+            brand gets the mark alone. */}
+        {!brand.logoIsLockup && (
           <>
             <h1 className={`text-3xl font-bold ${onGradient ? 'text-white' : 'text-brand'}`}>
               {brand.name}
             </h1>
             <p className="text-on-app-muted mt-1">{brand.tagline}</p>
           </>
-        ) : (
-          onGradient && <p className="text-on-app-muted mt-3 text-lg">{brand.tagline}</p>
         )}
       </div>
       <div className="w-full max-w-md">{children}</div>
