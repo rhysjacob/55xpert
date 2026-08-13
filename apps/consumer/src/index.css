@@ -1,1 +1,17 @@
 @import 'tailwindcss';
+
+/*
+ * Brand colours are indirected through runtime custom properties so a single
+ * build can serve every white-label client — applyBrand() overwrites these on
+ * documentElement before the first render. The literals here are the default
+ * brand, and also the fallback if applyBrand somehow never runs.
+ */
+:root {
+  --brand-primary: #2563eb;
+  --brand-primary-dark: #1d4ed8;
+}
+
+@theme {
+  --color-brand: var(--brand-primary);
+  --color-brand-dark: var(--brand-primary-dark);
+}

@@ -58,13 +58,13 @@ export function SignInPage() {
           </form>
           <div className="mt-4 text-sm text-center space-y-2">
             <p>
-              <Link to="/forgot-password" className="text-blue-600 hover:underline">
+              <Link to="/forgot-password" className="text-brand hover:underline">
                 Forgot password?
               </Link>
             </p>
             <p className="text-gray-500">
               Don't have an account?{' '}
-              <Link to="/sign-up" className="text-blue-600 hover:underline">
+              <Link to="/sign-up" className="text-brand hover:underline">
                 Sign up
               </Link>
             </p>

@@ -94,7 +94,7 @@ export function TriageResultsPage() {
     return (
       <Layout>
         <div className="max-w-md mx-auto text-center py-16">
-          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-brand" />
           <h1 className="text-xl font-semibold text-gray-900">Analysing your photos</h1>
           <p className="mt-2 text-gray-500">
             Our AI is assessing the damage and estimating repair costs. This usually
