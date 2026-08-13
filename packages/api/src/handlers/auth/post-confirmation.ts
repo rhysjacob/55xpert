@@ -3,6 +3,7 @@ import {
   CognitoIdentityProviderClient,
   DescribeUserPoolClientCommand,
   AdminAddUserToGroupCommand,
+  AdminUpdateUserAttributesCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { randomUUID } from 'node:crypto';
 import { UsersRepository, OrganisationsRepository } from '@corexpert/db';
@@ -35,7 +36,9 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
   // The client name encodes the role (e.g. corexpert-dev-repairer), so we
   // look it up at runtime — this keeps the Lambda free of any compile-time
   // reference to the user pool / clients, avoiding a CloudFormation cycle.
-  const role = await resolveRole(event.userPoolId, clientId);
+  const clientName = await resolveClientName(event.userPoolId, clientId);
+  const role = roleFromClientName(clientName);
+  const warrantyCompanyId = tenantFromClientName(clientName);
   const now = new Date().toISOString();
 
   const userId = userAttributes['sub'] ?? '';
@@ -118,6 +121,7 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
     role,
     isActive: true,
     ...(organisationId ? { organisationId } : {}),
+    ...(warrantyCompanyId ? { warrantyCompanyId } : {}),
     ...(repairer ? { repairer } : {}),
     createdAt: now,
     updatedAt: now,
@@ -128,7 +132,32 @@ export async function handler(event: PostConfirmationTriggerEvent): Promise<Post
   logger.info('User created in DynamoDB', {
     userId: user.userId,
     role: user.role,
+    ...(warrantyCompanyId ? { warrantyCompanyId } : {}),
   });
+
+  // Mirror the tenant onto the Cognito user so it appears in the JWT as
+  // custom:warrantyCompanyId — that claim is what the API trusts when stamping
+  // a case, and it cannot be forged by the browser. Best-effort: a failure here
+  // must not fail confirmation, but it does mean the user falls back to the
+  // default tenant until repaired, so it is logged as an error.
+  if (warrantyCompanyId) {
+    try {
+      await cognito.send(
+        new AdminUpdateUserAttributesCommand({
+          UserPoolId: event.userPoolId,
+          Username: event.userName,
+          UserAttributes: [{ Name: 'custom:warrantyCompanyId', Value: warrantyCompanyId }],
+        }),
+      );
+      logger.info('Tenant stamped on Cognito user', { userId, warrantyCompanyId });
+    } catch (err) {
+      logger.error('Failed to stamp tenant on Cognito user', {
+        userId,
+        warrantyCompanyId,
+        err: String(err),
+      });
+    }
+  }
 
   // Add the user to the Cognito group matching their role. The API authorizes
   // requests from the `cognito:groups` claim, so without this membership the
@@ -157,22 +186,58 @@ const ROLE_TO_GROUP: Record<UserRole, string> = {
   ADMIN: 'admins',
 };
 
-async function resolveRole(userPoolId: string, clientId: string): Promise<UserRole> {
-  // The app client name encodes the role (corexpert-{stage}-{role}).
+async function resolveClientName(userPoolId: string, clientId: string): Promise<string> {
+  // The app client name encodes the role (corexpert-{stage}-{role}) and, for a
+  // white-label portal, the brand (corexpert-{stage}-consumer-{brand}).
   // Look it up rather than relying on injected client-ID env vars, which
   // would create a UserPool -> Lambda -> Client -> UserPool dependency cycle.
   try {
     const { UserPoolClient } = await cognito.send(
       new DescribeUserPoolClientCommand({ UserPoolId: userPoolId, ClientId: clientId }),
     );
-    const name = UserPoolClient?.ClientName ?? '';
-    if (name.endsWith('-repairer')) return 'REPAIRER';
-    if (name.endsWith('-admin')) return 'ADMIN';
-    if (name.endsWith('-consumer')) return 'CONSUMER';
+    return UserPoolClient?.ClientName ?? '';
   } catch (err) {
-    logger.error('Failed to resolve client name for role', { clientId, err });
+    logger.error('Failed to resolve client name', { clientId, err });
+    return '';
   }
+}
+
+function roleFromClientName(name: string): UserRole {
+  if (name.endsWith('-repairer')) return 'REPAIRER';
+  if (name.endsWith('-admin')) return 'ADMIN';
+  // Both `-consumer` and the white-label `-consumer-{brand}` clients.
+  if (name.includes('-consumer')) return 'CONSUMER';
 
   // Default to consumer for unknown clients
   return 'CONSUMER';
+}
+
+/**
+ * The tenant that owns cases submitted through this portal, or undefined for
+ * the default (non-white-label) consumer client. The brand -> tenant map is
+ * server-side config: the client only proves *which portal* the signup came
+ * from, never which tenant it may claim.
+ */
+function tenantFromClientName(name: string): string | undefined {
+  const match = /-consumer-(.+)$/.exec(name);
+  if (!match?.[1]) return undefined;
+
+  const brand = match[1];
+  let map: Record<string, string>;
+  try {
+    map = JSON.parse(process.env['WHITE_LABEL_TENANTS'] ?? '{}') as Record<string, string>;
+  } catch (err) {
+    logger.error('WHITE_LABEL_TENANTS is not valid JSON', { err });
+    return undefined;
+  }
+
+  const tenantId = map[brand];
+  if (!tenantId) {
+    // A client exists for a brand with no tenant mapped. Falling through to the
+    // default tenant would silently file this client's cases in the wrong
+    // network, so make the misconfiguration loud.
+    logger.error('No tenant mapped for white-label brand', { brand, clientName: name });
+    return undefined;
+  }
+  return tenantId;
 }

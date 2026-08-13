@@ -39,6 +39,13 @@ export interface User {
    * repairer, matched from their own profile/preferences.
    */
   organisationId?: string;
+  /**
+   * The warranty tenant this user belongs to (TRX-77). Set at signup for
+   * consumers who arrived through a white-label portal, from the Cognito app
+   * client they signed up with. Absent for the default portal, whose cases fall
+   * back to the stage's default tenant.
+   */
+  warrantyCompanyId?: string;
   repairer?: RepairerProfile;
   preferences?: RepairerPreferences;
   createdAt: string;

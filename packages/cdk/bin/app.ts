@@ -56,6 +56,10 @@ new ApiStack(app, `${prefix}-Api`, {
     authStack.consumerClient.userPoolClientId,
     authStack.repairerClient.userPoolClientId,
     authStack.adminClient.userPoolClientId,
+    // White-label portals authenticate against their own client, so its id is
+    // the `aud` of their users' idTokens. Omit it and every request from that
+    // portal is rejected 401 by the authorizer.
+    ...Object.values(authStack.whiteLabelClients).map((c) => c.userPoolClientId),
   ],
   casesTable: databaseStack.casesTable,
   jobsTable: databaseStack.jobsTable,

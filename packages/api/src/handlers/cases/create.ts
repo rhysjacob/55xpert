@@ -43,16 +43,21 @@ async function createHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
   const body = parseBody(event, createSchema);
   const now = new Date().toISOString();
 
-  // Stamp the tenant (TRX-77). Consumer-submitted cases belong to the default
-  // tenant (DEMOTENANT); ingested cases carry their warranty company instead.
-  // The published job + payment inherit this downstream.
+  // Stamp the tenant (TRX-77). A consumer who signed up through a white-label
+  // portal carries their tenant in the JWT (custom:warrantyCompanyId, stamped
+  // at signup from the Cognito app client); everyone else falls back to the
+  // stage default. Ingested cases carry their warranty company instead. The
+  // published job + payment inherit this downstream, so it decides which
+  // repairer network sees the job — which is why it is taken from the signed
+  // token and never from a hostname, header or request body.
   const defaultTenant = process.env['DEFAULT_WARRANTY_COMPANY_ID'] ?? 'demotenant';
+  const tenant = auth.warrantyCompanyId ?? defaultTenant;
   const newCase: Case = {
     caseId: randomUUID(),
     referenceNo: generateCaseReference(),
     userId: auth.userId,
     status: 'DRAFT',
-    warrantyCompanyId: defaultTenant,
+    warrantyCompanyId: tenant,
     postcode: body.postcode,
     incidentDate: body.incidentDate,
     incidentNotes: body.incidentNotes,

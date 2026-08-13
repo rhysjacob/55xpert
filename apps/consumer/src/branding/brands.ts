@@ -37,6 +37,12 @@ export interface Brand {
   fontBody?: string;
   fontHeading?: string;
   fontUrl?: string;
+  /**
+   * Cognito app client for this brand (AuthStack output
+   * Consumer<Brand>ClientId). Signing up against it is what binds the user to
+   * this brand's warranty tenant server-side. Omit to use the default client.
+   */
+  userPoolClientId?: string;
 }
 
 export const DEFAULT_BRAND: Brand = {
@@ -79,6 +85,9 @@ const PRECISION_BRAND: Brand = {
   fontHeading: "'Mona Sans', 'Inter', system-ui, sans-serif",
   fontUrl:
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Mona+Sans:wght@300;400;500;600;700&display=swap',
+  // dev: AuthStack output ConsumerPrecisionClientId. Signing up here is what
+  // binds the user to the Precision Repair Group tenant.
+  userPoolClientId: '2ps8ohl1sftbq7fm6ni23v1p8i',
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];

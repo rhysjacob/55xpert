@@ -49,7 +49,8 @@ export class ApiStack extends cdk.Stack {
       `https://cognito-idp.${config.region}.amazonaws.com/${props.userPool.userPoolId}`,
       {
         // idTokens carry the app client ID in their `aud` claim, so the
-        // authorizer must accept all three SPA client IDs.
+        // authorizer must accept every SPA client ID — the three apps plus one
+        // per white-label portal.
         jwtAudience: props.userPoolClientIds,
       },
     );
