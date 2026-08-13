@@ -118,7 +118,7 @@ export function NewCasePage() {
             <div key={name} className="flex items-center">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  i <= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                  i <= step ? 'bg-brand text-white' : 'bg-gray-200 text-gray-500'
                 }`}
               >
                 {i + 1}
@@ -127,7 +127,7 @@ export function NewCasePage() {
                 {name}
               </span>
               {i < STEPS.length - 1 && (
-                <div className={`w-12 h-0.5 mx-3 ${i < step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                <div className={`w-12 h-0.5 mx-3 ${i < step ? 'bg-brand' : 'bg-gray-200'}`} />
               )}
             </div>
           ))}

@@ -25,6 +25,17 @@ const SPAS: SpaDefinition[] = [
   { id: 'Admin', app: 'admin' },
 ];
 
+/** An extra consumer distribution per white-label client. `brand` must match a
+ *  brand id in apps/consumer/src/branding/brands.ts. */
+interface WhiteLabelDefinition {
+  id: string;
+  brand: string;
+}
+
+const WHITE_LABELS: WhiteLabelDefinition[] = [
+  { id: 'ConsumerPrecision', brand: 'precision' },
+];
+
 /**
  * Static hosting for the three SPAs: one private bucket + CloudFront
  * distribution each, fronted by Origin Access Control.
@@ -42,6 +53,7 @@ export class FrontendStack extends cdk.Stack {
     const { config } = props;
     const destroy = config.removalPolicy === 'destroy';
     const removal = destroy ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN;
+    const buckets: Record<string, s3.Bucket> = {};
 
     for (const spa of SPAS) {
       const distPath = path.join(__dirname, '..', '..', '..', '..', 'apps', spa.app, 'dist');
@@ -62,33 +74,11 @@ export class FrontendStack extends cdk.Stack {
         enforceSSL: true,
       });
 
-      const distribution = new cloudfront.Distribution(this, `${spa.id}Distribution`, {
-        comment: `corexpert-${config.stage} ${spa.app}`,
-        defaultRootObject: 'index.html',
-        defaultBehavior: {
-          origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
-          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-          responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
-        },
-        // Client-side routing: React Router owns every path, so unmatched keys
-        // must serve the shell rather than an S3 error document.
-        errorResponses: [
-          {
-            httpStatus: 403,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.minutes(0),
-          },
-          {
-            httpStatus: 404,
-            responseHttpStatus: 200,
-            responsePagePath: '/index.html',
-            ttl: cdk.Duration.minutes(0),
-          },
-        ],
-        priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-      });
+      const distribution = this.spaDistribution(
+        `${spa.id}Distribution`,
+        bucket,
+        `corexpert-${config.stage} ${spa.app}`,
+      );
 
       // Fingerprinted assets are immutable; index.html must never be cached or
       // clients pin to a stale bundle after a deploy.
@@ -127,6 +117,76 @@ export class FrontendStack extends cdk.Stack {
       new cdk.CfnOutput(this, `${spa.id}DistributionId`, {
         value: distribution.distributionId,
       });
+
+      buckets[spa.app] = bucket;
     }
+
+    // White-label consumer portals. Each gets its own CloudFront distribution
+    // over the SAME bucket and the SAME bundle — the SPA picks its brand from
+    // the hostname at runtime (apps/consumer/src/branding/brands.ts), so a new
+    // client costs a distribution and a config entry, not a second build.
+    // A custom domain later means adding domainNames + an ACM cert (us-east-1)
+    // to the distribution below; nothing else changes.
+    const consumerBucket = buckets['consumer'];
+    if (!consumerBucket) {
+      throw new Error('Consumer bucket missing — white-label distributions cannot be created.');
+    }
+
+    for (const label of WHITE_LABELS) {
+      const distribution = this.spaDistribution(
+        `${label.id}Distribution`,
+        consumerBucket,
+        `corexpert-${config.stage} consumer (${label.brand})`,
+      );
+
+      this.distributionDomains[`consumer-${label.brand}`] = distribution.distributionDomainName;
+
+      new cdk.CfnOutput(this, `${label.id}Url`, {
+        value: `https://${distribution.distributionDomainName}`,
+        description: `consumer app URL, ${label.brand} brand`,
+      });
+      new cdk.CfnOutput(this, `${label.id}DistributionId`, {
+        value: distribution.distributionId,
+      });
+    }
+  }
+
+  /**
+   * A CloudFront distribution fronting an SPA bucket via Origin Access Control.
+   * Shared by the per-app distributions and the white-label ones so their
+   * caching and routing behaviour cannot drift apart.
+   */
+  private spaDistribution(
+    id: string,
+    bucket: s3.IBucket,
+    comment: string,
+  ): cloudfront.Distribution {
+    return new cloudfront.Distribution(this, id, {
+      comment,
+      defaultRootObject: 'index.html',
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+      },
+      // Client-side routing: React Router owns every path, so unmatched keys
+      // must serve the shell rather than an S3 error document.
+      errorResponses: [
+        {
+          httpStatus: 403,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(0),
+        },
+        {
+          httpStatus: 404,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(0),
+        },
+      ],
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+    });
   }
 }
