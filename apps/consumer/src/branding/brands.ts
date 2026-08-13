@@ -19,8 +19,13 @@ export interface Brand {
   /** Primary brand colour, and the darker shade used for hover/active. */
   primary: string;
   primaryDark: string;
-  /** Optional mark shown beside the wordmark. */
+  /** Optional mark. Served from the app's own origin, not the client's CDN. */
   logoUrl?: string;
+  /**
+   * True when logoUrl is a full lockup that already contains the company name.
+   * The name and tagline are then suppressed rather than repeated beside it.
+   */
+  logoIsLockup?: boolean;
 }
 
 export const DEFAULT_BRAND: Brand = {
@@ -36,8 +41,11 @@ export const DEFAULT_BRAND: Brand = {
  * Taken from precisionrepairgroup.com: the site is monochrome — near-black,
  * white and greys — so the primary is their black rather than a colour.
  * Their display face (Polysans) is licensed to them and deliberately not used.
- * TODO: self-host the logo before this faces real customers; it is currently
- * hotlinked from their Webflow CDN and will break if they redeploy.
+ *
+ * The logo is their horizontal lockup (425x189), self-hosted in public/brands
+ * rather than hotlinked. They publish it white-on-transparent for their dark
+ * site; this copy is recoloured to their black so it reads on the portal's
+ * light background — the same colourway as the black mark on their own site.
  */
 const PRECISION_BRAND: Brand = {
   id: 'precision',
@@ -45,8 +53,8 @@ const PRECISION_BRAND: Brand = {
   tagline: 'Partnering independence',
   primary: '#161616',
   primaryDark: '#000000',
-  logoUrl:
-    'https://cdn.prod.website-files.com/692ae1e783f75d08781c5c46/692b338c77c6980b2e58bb09_precision%20black%20300x300.png',
+  logoUrl: '/brands/precision-logo.svg',
+  logoIsLockup: true,
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];
