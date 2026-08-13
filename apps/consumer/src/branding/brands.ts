@@ -26,6 +26,17 @@ export interface Brand {
    * The name and tagline are then suppressed rather than repeated beside it.
    */
   logoIsLockup?: boolean;
+  /** Reversed-out logo, required when navTheme is 'dark'. */
+  logoUrlOnDark?: string;
+  /** 'dark' renders the nav as a black bar, as on a dark marketing site. */
+  navTheme?: 'light' | 'dark';
+  /** Accent gradient, used sparingly — a hairline, not a paint job. */
+  accentFrom?: string;
+  accentTo?: string;
+  /** Webfont stack. fontUrl is injected only for brands that set it. */
+  fontBody?: string;
+  fontHeading?: string;
+  fontUrl?: string;
 }
 
 export const DEFAULT_BRAND: Brand = {
@@ -55,6 +66,19 @@ const PRECISION_BRAND: Brand = {
   primaryDark: '#000000',
   logoUrl: '/brands/precision-logo.svg',
   logoIsLockup: true,
+  logoUrlOnDark: '/brands/precision-logo-white.svg',
+  navTheme: 'dark',
+  // The only colour on their site: the gradient inside the P mark. Everything
+  // else is black, white and grey — so this is an accent, never a fill.
+  accentFrom: '#004ee8',
+  accentTo: '#9e60fd',
+  // What their site actually renders in. Both are open-licensed (SIL OFL), so
+  // matching their typography is legitimate — unlike Polysans, which their
+  // stylesheet declares but never applies.
+  fontBody: "'Inter', system-ui, sans-serif",
+  fontHeading: "'Mona Sans', 'Inter', system-ui, sans-serif",
+  fontUrl:
+    'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Mona+Sans:wght@300;400;500;600;700&display=swap',
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];
@@ -100,5 +124,19 @@ export function applyBrand(brand: Brand): void {
   const root = document.documentElement;
   root.style.setProperty('--brand-primary', brand.primary);
   root.style.setProperty('--brand-primary-dark', brand.primaryDark);
+  if (brand.accentFrom) root.style.setProperty('--brand-accent-from', brand.accentFrom);
+  if (brand.accentTo) root.style.setProperty('--brand-accent-to', brand.accentTo);
+  if (brand.fontBody) root.style.setProperty('--brand-font-body', brand.fontBody);
+  if (brand.fontHeading) root.style.setProperty('--brand-font-heading', brand.fontHeading);
+
+  // Only brands that specify a webfont pay for the request.
+  if (brand.fontUrl && !document.querySelector(`link[data-brand-font]`)) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = brand.fontUrl;
+    link.setAttribute('data-brand-font', brand.id);
+    document.head.appendChild(link);
+  }
+
   document.title = brand.nameAccent ? `${brand.name} ${brand.nameAccent}` : brand.name;
 }

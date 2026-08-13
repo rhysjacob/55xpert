@@ -13,15 +13,24 @@ export function Layout({ children }: { children: ReactNode }) {
     navigate('/sign-in');
   };
 
+  const dark = brand.navTheme === 'dark';
+  const navLogo = (dark && brand.logoUrlOnDark) || brand.logoUrl;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b border-gray-200">
+      <nav
+        className={dark ? 'bg-brand' : 'bg-white border-b border-gray-200'}
+        style={dark ? { backgroundColor: 'var(--brand-primary)' } : undefined}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
-            <Link to="/" className="flex items-center gap-2 text-xl font-bold text-brand">
-              {brand.logoUrl && (
+            <Link
+              to="/"
+              className={`flex items-center gap-2 text-xl font-bold ${dark ? 'text-white' : 'text-brand'}`}
+            >
+              {navLogo && (
                 <img
-                  src={brand.logoUrl}
+                  src={navLogo}
                   alt={brand.logoIsLockup ? brand.name : ''}
                   className={brand.logoIsLockup ? 'h-14 w-auto' : 'h-12 w-12 object-contain'}
                 />
@@ -37,10 +46,14 @@ export function Layout({ children }: { children: ReactNode }) {
             </Link>
             {user && (
               <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600">{user.email}</span>
+                <span className={`text-sm ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {user.email}
+                </span>
                 <button
                   onClick={handleSignOut}
-                  className="text-sm text-gray-500 hover:text-gray-700"
+                  className={`text-sm ${
+                    dark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+                  }`}
                 >
                   Sign out
                 </button>
@@ -48,6 +61,8 @@ export function Layout({ children }: { children: ReactNode }) {
             )}
           </div>
         </div>
+        {/* The one place their colour appears: a hairline of the mark's gradient. */}
+        {dark && <div className="h-0.5 bg-brand-gradient" />}
       </nav>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
