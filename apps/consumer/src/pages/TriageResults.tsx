@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
@@ -7,14 +7,17 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
 import { humanize } from '@corexpert/core';
 import { HeadingMotif } from '../branding/BrandMotif';
+import { useBrand } from '../branding/useBrand';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
 
 interface TriageResponse {
   caseId: string;
   referenceNo: string;
   status: string;
+  warrantyCompanyId?: string;
   vehicle?: { make?: string; model?: string; year?: number };
   triageResult: TriageResult | null;
+  siteAllocationRequestedAt?: string;
   images?: { imageType: string; url: string }[];
 }
 
@@ -26,6 +29,80 @@ const CONFIDENCE_COLORS: Record<TriageConfidence, string> = {
 
 function formatPence(pence: number): string {
   return `\u00A3${(pence / 100).toFixed(2)}`;
+}
+
+/**
+ * What a referred case says to the consumer.
+ *
+ * The neutral default is a status: an Xpert is looking at it. A warranty company
+ * that handles referrals in its own network instead gets its own wording plus a
+ * hand-off it can act on — offered only when the case actually belongs to that
+ * company, since a user can open any portal but a case has one tenant.
+ */
+function ReferralNotice({
+  caseId,
+  warrantyCompanyId,
+  requestedAt,
+}: {
+  caseId: string;
+  warrantyCompanyId?: string;
+  requestedAt?: string;
+}) {
+  const brand = useBrand();
+  const queryClient = useQueryClient();
+
+  const requestAllocation = useMutation({
+    mutationFn: () => api.post(`/api/v1/cases/${caseId}/site-allocation`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['triage', caseId] }),
+  });
+
+  const tenantMatches =
+    brand.warrantyCompanyId !== undefined && brand.warrantyCompanyId === warrantyCompanyId;
+  if (!brand.referral || !tenantMatches) {
+    return (
+      <>
+        <p className="font-semibold text-yellow-800">Sent to an Xpert for review</p>
+        <p className="text-sm text-yellow-700 mt-1">
+          We need a specialist to confirm this one before quoting. Reasons:
+        </p>
+      </>
+    );
+  }
+
+  if (requestedAt) {
+    return (
+      <>
+        <p className="font-semibold text-yellow-800">{brand.referral.requestedTitle}</p>
+        <p className="text-sm text-yellow-700 mt-1">{brand.referral.requestedDetail}</p>
+        <p className="text-sm text-yellow-700 mt-2">Why this was referred:</p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="font-semibold text-yellow-800">
+        {brand.referral.before}
+        <button
+          type="button"
+          onClick={() => requestAllocation.mutate()}
+          disabled={requestAllocation.isPending}
+          className="underline underline-offset-2 hover:no-underline disabled:no-underline disabled:opacity-60"
+        >
+          {requestAllocation.isPending ? 'Sending…' : brand.referral.linkText}
+        </button>
+        {brand.referral.after}
+      </p>
+      {requestAllocation.isError && (
+        <p className="text-sm text-red-700 mt-1">
+          {requestAllocation.error instanceof Error
+            ? requestAllocation.error.message
+            : "That didn't go through. Please try again."}
+        </p>
+      )}
+      <p className="text-sm text-yellow-700 mt-2">Why this was referred:</p>
+    </>
+  );
 }
 
 function PanelRow({ panel }: { panel: DamagePanel }) {
@@ -157,10 +234,11 @@ export function TriageResultsPage() {
         )}
         {triageResult.eligibility?.verdict === 'REFER' && (
           <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="font-semibold text-yellow-800">Sent to an Xpert for review</p>
-            <p className="text-sm text-yellow-700 mt-1">
-              We need a specialist to confirm this one before quoting. Reasons:
-            </p>
+            <ReferralNotice
+              caseId={data.caseId}
+              warrantyCompanyId={data.warrantyCompanyId}
+              requestedAt={data.siteAllocationRequestedAt}
+            />
             <ul className="mt-2 list-disc list-inside text-sm text-yellow-700 space-y-1">
               {triageResult.eligibility.reasons
                 .filter((r) => r.verdict === 'REFER')

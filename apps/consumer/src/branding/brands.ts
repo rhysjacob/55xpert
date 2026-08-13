@@ -55,6 +55,35 @@ export interface Brand {
    * this brand's warranty tenant server-side. Omit to use the default client.
    */
   userPoolClientId?: string;
+  /**
+   * The warranty tenant this brand's portal belongs to. Only used to check that
+   * a case actually belongs to this tenant before showing tenant-specific
+   * wording — the portal a case is *viewed* on proves nothing, since any user
+   * can reach any portal. Never sent to the API; the server takes the tenant
+   * from the signed token.
+   */
+  warrantyCompanyId?: string;
+  /**
+   * What this company says when a case is referred rather than priced. Brands
+   * that set it are saying "we handle referrals ourselves" — the consumer is
+   * offered a hand-off to one of the company's own sites instead of the neutral
+   * "an Xpert is reviewing this".
+   */
+  referral?: BrandReferralCopy;
+}
+
+/**
+ * Referral wording, split so the action reads as part of the sentence rather
+ * than as a button bolted underneath it.
+ */
+export interface BrandReferralCopy {
+  /** Sentence around the action, e.g. "… – ", "click here", " to allocate …". */
+  before: string;
+  linkText: string;
+  after: string;
+  /** Shown in place of the above once the hand-off has been requested. */
+  requestedTitle: string;
+  requestedDetail: string;
 }
 
 export const DEFAULT_BRAND: Brand = {
@@ -108,6 +137,19 @@ const PRECISION_BRAND: Brand = {
   // dev: AuthStack output ConsumerPrecisionClientId. Signing up here is what
   // binds the user to the Precision Repair Group tenant.
   userPoolClientId: '2ps8ohl1sftbq7fm6ni23v1p8i',
+  // dev: the Precision Repair Group row in the warranty-companies table.
+  warrantyCompanyId: '4496a9cb-01fa-436b-8dc9-c6553d61c8ad',
+  // Precision take referred work into their own sites rather than leaving the
+  // customer waiting on a review, so their referral wording is an offer, not a
+  // status. Their words, verbatim.
+  referral: {
+    before: 'This does NOT qualify for mobile repair solution – ',
+    linkText: 'click here',
+    after: ' to allocate to most suitable Precision Site',
+    requestedTitle: 'Sent to Precision Repair Group',
+    requestedDetail:
+      "They'll allocate the most suitable site for this repair and contact you directly.",
+  },
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];

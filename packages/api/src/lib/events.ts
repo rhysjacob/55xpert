@@ -19,6 +19,9 @@ export const DomainEvent = {
   JOB_PUBLISHED: 'job.published',
   /** A repairer raised a post-acceptance "refer to expert" query (TRX-57). */
   JOB_QUERY_RAISED: 'job.query.raised',
+  /** A consumer asked their warranty company to allocate a referred case to one
+   *  of its own sites, because the damage is not doable as a mobile repair. */
+  CASE_SITE_ALLOCATION_REQUESTED: 'case.site-allocation.requested',
 } as const;
 export type DomainEvent = (typeof DomainEvent)[keyof typeof DomainEvent];
 
