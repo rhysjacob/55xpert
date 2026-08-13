@@ -19,6 +19,8 @@ export interface Brand {
   /** Primary brand colour, and the darker shade used for hover/active. */
   primary: string;
   primaryDark: string;
+  /** Optional mark shown beside the wordmark. */
+  logoUrl?: string;
 }
 
 export const DEFAULT_BRAND: Brand = {
@@ -30,12 +32,21 @@ export const DEFAULT_BRAND: Brand = {
   primaryDark: '#1d4ed8',
 };
 
+/**
+ * Taken from precisionrepairgroup.com: the site is monochrome — near-black,
+ * white and greys — so the primary is their black rather than a colour.
+ * Their display face (Polysans) is licensed to them and deliberately not used.
+ * TODO: self-host the logo before this faces real customers; it is currently
+ * hotlinked from their Webflow CDN and will break if they redeploy.
+ */
 const PRECISION_BRAND: Brand = {
   id: 'precision',
   name: 'Precision Repair Group',
-  tagline: 'Vehicle Damage Assessment',
-  primary: '#0f766e',
-  primaryDark: '#115e59',
+  tagline: 'Partnering independence',
+  primary: '#161616',
+  primaryDark: '#000000',
+  logoUrl:
+    'https://cdn.prod.website-files.com/692ae1e783f75d08781c5c46/692b338c77c6980b2e58bb09_precision%20black%20300x300.png',
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];
