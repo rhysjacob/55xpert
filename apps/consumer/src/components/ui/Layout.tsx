@@ -18,10 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const navLogo = (dark && brand.logoUrlOnDark) || brand.logoUrl;
 
   return (
-    // `isolate` so the watermark's negative z-index puts it above this element's
-    // own background but still behind the nav and content.
-    <div className="relative isolate min-h-screen bg-app">
-      <BrandWatermark />
+    <div className="min-h-screen bg-app">
       <nav
         className={dark ? 'bg-brand' : 'bg-white border-b border-gray-200'}
         style={dark ? { backgroundColor: 'var(--brand-primary)' } : undefined}
@@ -84,7 +81,9 @@ export function AuthLayout({ children }: { children: ReactNode }) {
   const logo = (onGradient && brand.logoUrlOnDark) || brand.logoUrl;
 
   return (
-    <div className="relative isolate min-h-screen bg-app flex flex-col items-center justify-center px-4 py-12">
+    // `brand-surface` paints the gradient for brands that have one (index.css)
+    // and `isolate` keeps the watermark above it but behind the card.
+    <div className="brand-surface relative isolate min-h-screen bg-app flex flex-col items-center justify-center px-4 py-12">
       <BrandWatermark />
       <div className="mb-8 text-center">
         {logo && (

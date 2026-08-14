@@ -44,10 +44,14 @@ h3 {
  * on white and keeps its ordinary grey scale, which is why these are opt-in
  * classes rather than a blanket override of text-gray-*.
  *
- * A brand with `surface: 'gradient'` (applyBrand sets data-brand-surface on
- * <html>) swaps the light field for its accent gradient and reverses this text
- * out. Every brand keeps one definition per property, so the light default is
- * never left implicit.
+ * The gradient is scoped to `.brand-surface` — the signed-out screens — not to
+ * the whole document. Behind the login the app is working software: damage
+ * photos, prices and red/amber verdicts all need a neutral ground. So the
+ * gradient introduces the brand and then gets out of the way.
+ *
+ * Text reverses out only INSIDE a `.brand-surface`, which is why these rules are
+ * descendant-scoped rather than keyed off `data-brand-surface` alone. The same
+ * `.text-on-app` therefore reads dark on the dashboard and white on sign-in.
  */
 .bg-app {
   background-color: #f9fafb; /* gray-50 */
@@ -58,9 +62,7 @@ h3 {
 .text-on-app-muted {
   color: #6b7280; /* gray-500 */
 }
-/* Status text on the page field. Red/green at their usual weight is unreadable
-   on a saturated gradient, so these lighten rather than trying to hold the
-   same hue. */
+/* Status text on the page field. */
 .text-on-app-danger {
   color: #dc2626; /* red-600 */
 }
@@ -75,18 +77,16 @@ h3 {
 .rule-idle {
   background-color: #e5e7eb;
 }
-/* Spinner track on the page field. Only the three sides Tailwind's
-   `border-t-<colour>` does not claim, so the two cannot fight over
-   border-color regardless of which rule lands later in the cascade. */
+/* Spinner track. Only the three sides Tailwind's `border-t-<colour>` does not
+   claim, so the two cannot fight over border-color. */
 .spinner-track {
   border-right-color: #e5e7eb;
   border-bottom-color: #e5e7eb;
   border-left-color: #e5e7eb;
 }
 
-:root[data-brand-surface='gradient'] .bg-app {
-  /* Fixed so the field stays put on long results pages instead of scrolling
-     as a band. 135deg matches the diagonal on the brands' own hero. */
+:root[data-brand-surface='gradient'] .brand-surface {
+  /* 135deg matches the diagonal on the brands' own hero. */
   background-color: var(--brand-accent-from);
   background-image: linear-gradient(
     135deg,
@@ -95,27 +95,9 @@ h3 {
   );
   background-attachment: fixed;
 }
-:root[data-brand-surface='gradient'] .text-on-app {
+:root[data-brand-surface='gradient'] .brand-surface .text-on-app {
   color: #fff;
 }
-:root[data-brand-surface='gradient'] .text-on-app-muted {
+:root[data-brand-surface='gradient'] .brand-surface .text-on-app-muted {
   color: rgb(255 255 255 / 0.72);
-}
-:root[data-brand-surface='gradient'] .chip-idle {
-  background-color: rgb(255 255 255 / 0.22);
-  color: #fff;
-}
-:root[data-brand-surface='gradient'] .rule-idle {
-  background-color: rgb(255 255 255 / 0.35);
-}
-:root[data-brand-surface='gradient'] .spinner-track {
-  border-right-color: rgb(255 255 255 / 0.35);
-  border-bottom-color: rgb(255 255 255 / 0.35);
-  border-left-color: rgb(255 255 255 / 0.35);
-}
-:root[data-brand-surface='gradient'] .text-on-app-danger {
-  color: #fecaca; /* red-200 */
-}
-:root[data-brand-surface='gradient'] .text-on-app-success {
-  color: #bbf7d0; /* green-200 */
 }
