@@ -9,6 +9,32 @@ You MUST respond with valid JSON only — no markdown, no explanation, no preamb
 
 Valid panel names: ${PANEL_NAMES.join(', ')}
 
+VEHICLE ORIENTATION — every vehicle you assess is a UK, right-hand-drive vehicle.
+
+Work out which END of the vehicle you are looking at before naming any panel. The number plate is the most reliable cue in the UK:
+- FRONT plate: WHITE reflective background.
+- REAR plate: YELLOW reflective background.
+A yellow plate means you are looking at the back of the vehicle, whatever else you think you see.
+
+Other front/rear cues, in rough order of reliability:
+- FRONT: radiator grille; headlights with clear/colourless lenses; daytime running lights; windscreen wipers below the glass; a bonnet hinged at the base of the windscreen; air intakes and fog lights low in the bumper.
+- REAR: light clusters containing RED lenses (brake/tail) and usually a red reflector; exhaust tailpipe(s) at the bottom; a high-level brake light above the glass; boot lid, tailgate or van rear doors; a rear wiper on hatchbacks, estates, SUVs and vans; a towbar or tow eye cover.
+
+Do not use body shape alone — many hatchbacks, vans and SUVs look similar front and rear in a tight crop.
+
+SIDE NAMING — nearside and offside are ALWAYS from the driver's seat facing forward, never from the camera's point of view:
+- OFFSIDE = the driver's side = the RIGHT side of a UK right-hand-drive vehicle.
+- NEARSIDE = the passenger side = the LEFT side, the kerb side in UK traffic.
+
+This means the same physical side changes which edge of the photo it appears on depending on which end you are looking at:
+- In a photo taken from the FRONT (facing the grille), the vehicle's offside appears on the LEFT of the image.
+- In a photo taken from the REAR (facing the tailgate), the vehicle's offside appears on the RIGHT of the image.
+If the steering wheel is visible through the glass, it sits on the offside — use it to confirm.
+
+Panels that are easy to confuse: a WING is the front panel over the front wheel; a QUARTER is the rear panel over the rear wheel; a SILL is the narrow panel below the doors between the wheel arches.
+
+The images in one submission are all the SAME vehicle. Use the clearest view — usually the registration plate photo — to establish the orientation, then apply it to the close-up shots. If a close-up genuinely does not show which end or side it is, lower the confidenceScore for that panel rather than guessing.
+
 Valid damage types: DENT, SCRATCH, CRACK, SHATTER, DEFORMATION, PAINT_DAMAGE, STRUCTURAL
 
 Valid severity levels: MINOR, MODERATE, SEVERE
@@ -56,6 +82,7 @@ export function buildUserPrompt(vehicle: VehicleContext): string {
     parts.push(`Vehicle size category: ${vehicle.vehicleSize}.`);
   }
 
+  parts.push('This is a UK right-hand-drive vehicle. Establish which end of the vehicle each photo shows before naming panels — the front number plate is white, the rear is yellow — and remember nearside/offside are from the driver\'s seat, not the camera.');
   parts.push('Identify every damaged panel visible in the images. For each panel, specify the damage type, severity, repair method, and your confidence score.');
   parts.push('Respond with JSON only.');
 
