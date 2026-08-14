@@ -11,7 +11,10 @@ import { Input } from '../components/ui/Input';
 interface EligibilityRules {
   maxDamagedPanels: number; excludedPanels: string[]; maxDamageCm: number;
   damageSizeBorderlineCm: number; minSizeConfidence: number;
-  referOnReplace: boolean; referOnSevere: boolean; totalLossThresholdPct: number;
+  referOnReplace: boolean; referOnSevere: boolean;
+  /** Absent means "on" — companies onboarded before the toggle existed. */
+  referOnAiUncertainty?: boolean;
+  totalLossThresholdPct: number;
 }
 type PaintPrices = Partial<Record<string, number>>;
 interface MatrixConfig {
@@ -183,6 +186,7 @@ export function SchemeRulesPage() {
                     <div className="flex flex-wrap gap-6 mt-5 pt-5 border-t border-gray-100">
                       <Toggle label="Refer full REPLACE to an Xpert" checked={elig.referOnReplace} onChange={(b) => patchElig({ referOnReplace: b })} />
                       <Toggle label="Refer SEVERE damage to an Xpert" checked={elig.referOnSevere} onChange={(b) => patchElig({ referOnSevere: b })} />
+                      <Toggle label="Refer when the AI asks for a second opinion" checked={elig.referOnAiUncertainty !== false} onChange={(b) => patchElig({ referOnAiUncertainty: b })} />
                     </div>
                   </CardBody></Card>
                 </div>

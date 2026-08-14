@@ -6,9 +6,11 @@ import { applyBrand } from './branding/brands';
 import { currentBrand } from './branding/useBrand';
 import './index.css';
 
-configureAuth();
-// Before render, so there is no flash of the default brand.
-applyBrand(currentBrand());
+// Brand first: it decides which Cognito app client we authenticate against,
+// and applying it before render avoids a flash of the default brand.
+const brand = currentBrand();
+configureAuth(brand);
+applyBrand(brand);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

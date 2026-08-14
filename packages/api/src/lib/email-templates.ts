@@ -1,4 +1,4 @@
-import type { Job, JobQuery } from '@corexpert/core';
+import type { Case, Job, JobQuery } from '@corexpert/core';
 import type { EmailMessage } from './email';
 
 const money = (pence: number): string => `£${Math.round(pence / 100)}`;
@@ -110,5 +110,62 @@ export function expertQueryAnsweredEmail(query: JobQuery): Omit<EmailMessage, 't
     <blockquote style="margin:0;padding:10px 14px;background:#ecfdf5;border-radius:8px;white-space:pre-wrap">${query.response ?? ''}</blockquote>
     ${link ? `<p style="margin-top:16px"><a href="${link}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px">View the job</a></p>` : ''}
   </div>`;
+  return { subject, htmlBody, textBody };
+}
+
+/**
+ * A consumer has asked for a referred case to be allocated to one of the
+ * warranty company's own sites (the damage is not doable as a mobile repair).
+ * Addressed to whoever runs that company's allocation queue.
+ */
+export function siteAllocationRequestEmail(input: {
+  caseData: Case;
+  companyName?: string;
+  consumerName?: string;
+  consumerEmail?: string;
+}): Omit<EmailMessage, 'to'> {
+  const { caseData, companyName, consumerName, consumerEmail } = input;
+  const adminUrl = `${process.env['ADMIN_URL'] ?? process.env['FRONTEND_URL'] ?? ''}`.replace(/\/$/, '');
+  const link = adminUrl ? `${adminUrl}/cases/${caseData.caseId}` : '';
+  const vehicle = [caseData.vehicle?.make, caseData.vehicle?.model, caseData.vehicle?.registrationNo]
+    .filter(Boolean)
+    .join(' ');
+  const reasons = (caseData.triageResult?.eligibility?.reasons ?? [])
+    .filter((r) => r.verdict === 'REFER')
+    .map((r) => r.detail);
+
+  const subject = `Site allocation requested — ${caseData.referenceNo}${vehicle ? ` (${vehicle})` : ''}`;
+  const textBody = [
+    `A customer has asked for this case to be allocated to a${companyName ? ` ${companyName}` : ''} site.`,
+    'The assessment referred it, so it is not suitable for a mobile repair.',
+    '',
+    `Case: ${caseData.referenceNo}`,
+    vehicle ? `Vehicle: ${vehicle}` : '',
+    caseData.postcode ? `Customer postcode: ${caseData.postcode}` : '',
+    consumerName || consumerEmail ? `Customer: ${[consumerName, consumerEmail].filter(Boolean).join(' — ')}` : '',
+    '',
+    reasons.length ? 'Why it was referred:' : '',
+    ...reasons.map((r) => `- ${r}`),
+    '',
+    link ? `Open the case: ${link}` : '',
+    '',
+    'The Repair XChange',
+  ].filter(Boolean).join('\n');
+
+  const htmlBody = `
+  <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#111827">
+    <h2 style="color:#4f46e5;margin:0 0 8px">Site allocation requested</h2>
+    <p>A customer has asked for this case to be allocated to a${companyName ? ` ${companyName}` : ''} site. The assessment referred it, so it is not suitable for a mobile repair.</p>
+    <table style="border-collapse:collapse;margin:12px 0">
+      <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Case</td><td style="padding:4px 0"><strong>${caseData.referenceNo}</strong></td></tr>
+      ${vehicle ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Vehicle</td><td style="padding:4px 0">${vehicle}</td></tr>` : ''}
+      ${caseData.postcode ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Customer postcode</td><td style="padding:4px 0">${caseData.postcode}</td></tr>` : ''}
+      ${consumerEmail ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Customer</td><td style="padding:4px 0">${[consumerName, consumerEmail].filter(Boolean).join(' — ')}</td></tr>` : ''}
+    </table>
+    ${reasons.length ? `<p style="color:#6b7280;margin:0 0 4px">Why it was referred</p>
+    <ul style="margin:0;padding-left:18px">${reasons.map((r) => `<li>${r}</li>`).join('')}</ul>` : ''}
+    ${link ? `<p style="margin-top:16px"><a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px">Open the case</a></p>` : ''}
+  </div>`;
+
   return { subject, htmlBody, textBody };
 }

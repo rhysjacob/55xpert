@@ -49,7 +49,8 @@ export class ApiStack extends cdk.Stack {
       `https://cognito-idp.${config.region}.amazonaws.com/${props.userPool.userPoolId}`,
       {
         // idTokens carry the app client ID in their `aud` claim, so the
-        // authorizer must accept all three SPA client IDs.
+        // authorizer must accept every SPA client ID — the three apps plus one
+        // per white-label portal.
         jwtAudience: props.userPoolClientIds,
       },
     );
@@ -256,6 +257,10 @@ export class ApiStack extends cdk.Stack {
     addRoute('CasesGet', 'cases/get.ts', apigw.HttpMethod.GET, '/api/v1/cases/{caseId}', { readTables: [props.casesTable], s3: true });
     addRoute('CasesList', 'cases/list.ts', apigw.HttpMethod.GET, '/api/v1/cases', { readTables: [props.casesTable] });
     addRoute('CasesUpdate', 'cases/update.ts', apigw.HttpMethod.PATCH, '/api/v1/cases/{caseId}', { writeTables: [props.casesTable] });
+    addRoute('CasesRequestSiteAllocation', 'cases/request-site-allocation.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/site-allocation', {
+      writeTables: [props.casesTable],
+      events: true,
+    });
 
     // ===== Images =====
     addRoute('ImagesPresignedUrl', 'images/presigned-url.ts', apigw.HttpMethod.POST, '/api/v1/cases/{caseId}/images/presigned-url', { readTables: [props.casesTable], s3: true });
@@ -445,6 +450,27 @@ export class ApiStack extends cdk.Stack {
       eventBus: appEventBus,
       eventPattern: { source: ['corexpert.app'], detailType: ['job.query.raised'] },
       targets: [new eventsTargets.LambdaFunction(jobQueryNotifier.function)],
+    });
+
+    // Notifications: consume case.site-allocation.requested and email whoever
+    // allocates work to a warranty company's own sites.
+    const siteAllocationNotifier = new AppLambda(this, 'SiteAllocationRequestedNotifier', {
+      entry: path.join(handlersPath, 'notifications/site-allocation-requested.ts'),
+      environment: sharedEnv,
+      description: 'Email the allocation queue when a customer asks for a referred case to go to a site',
+      timeout: cdk.Duration.seconds(60),
+    });
+    props.casesTable.grantReadData(siteAllocationNotifier.function);
+    props.usersTable.grantReadData(siteAllocationNotifier.function);
+    props.warrantyCompaniesTable.grantReadData(siteAllocationNotifier.function);
+    siteAllocationNotifier.function.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+    }));
+    new events.Rule(this, 'SiteAllocationRequestedRule', {
+      eventBus: appEventBus,
+      eventPattern: { source: ['corexpert.app'], detailType: ['case.site-allocation.requested'] },
+      targets: [new eventsTargets.LambdaFunction(siteAllocationNotifier.function)],
     });
 
     // Scheduled sweeper: expire OPEN jobs past their expiry — 48h for ingested

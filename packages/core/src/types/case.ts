@@ -52,6 +52,13 @@ export interface Case {
   vehicle?: Vehicle;
   images: CaseImage[];
   triageResult?: TriageResult;
+  /**
+   * When the consumer asked their warranty company to allocate this case to one
+   * of its own sites, after a REFER verdict said the damage is not doable as a
+   * mobile repair. Set once and never cleared — it records that the hand-off was
+   * requested, not where it ended up.
+   */
+  siteAllocationRequestedAt?: string;
   xpertReviews: XpertReview[];
   createdAt: string;
   updatedAt: string;

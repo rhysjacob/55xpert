@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Precision Repair Group tab icon: their P mark, reversed out of the brand
+  gradient. The mark is the first path of precision-logo.svg, scaled and centred
+  on a 512 square (their lockup is too wide to read at 16px, so the mark alone).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#004ee8"/>
+      <stop offset="1" stop-color="#9e60fd"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#g)"/>
+  <g transform="translate(20.2,-21.7) scale(2.94)" fill="#fff">
+    <path d="M117.2,87.3v28.6l-25.7,15.3-24.2-14.3,49.9-29.6ZM91.5,43.4l-24.2,14.3,49.9,29.6v-28.6l-25.7-15.3ZM43.2,131.2l24.2,14.3V57.7l-24.2,14.3v59.2Z"/>
+  </g>
+</svg>

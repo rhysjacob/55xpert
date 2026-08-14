@@ -89,6 +89,32 @@ export class CasesRepository {
     );
   }
 
+  /**
+   * Record that the consumer asked for their case to be allocated to one of the
+   * warranty company's sites. Returns the timestamp that is now on the case —
+   * the existing one if it had already been requested, so a double-click (or a
+   * retried request) cannot raise the hand-off twice.
+   */
+  async markSiteAllocationRequested(caseId: string): Promise<string> {
+    const now = new Date().toISOString();
+    try {
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLES.CASES,
+          Key: { caseId },
+          UpdateExpression: 'SET siteAllocationRequestedAt = :now, updatedAt = :now',
+          ConditionExpression: 'attribute_not_exists(siteAllocationRequestedAt)',
+          ExpressionAttributeValues: { ':now': now },
+        }),
+      );
+      return now;
+    } catch (err) {
+      if ((err as { name?: string }).name !== 'ConditionalCheckFailedException') throw err;
+      const existing = await this.getById(caseId);
+      return existing?.siteAllocationRequestedAt ?? now;
+    }
+  }
+
   async updateTriageResult(
     caseId: string,
     triageResult: Case['triageResult'],

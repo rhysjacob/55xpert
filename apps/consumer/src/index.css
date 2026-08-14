@@ -27,12 +27,77 @@ h3 {
   font-family: var(--brand-font-heading);
 }
 
-/* Accent gradient. Used as a hairline or small highlight — these brands are
-   monochrome, so a gradient fill would read as someone else's design. */
+/* Accent gradient as a hairline or small highlight. */
 .bg-brand-gradient {
   background-image: linear-gradient(
     90deg,
     var(--brand-accent-from),
     var(--brand-accent-to)
   );
+}
+
+/*
+ * Surfaces.
+ *
+ * `.bg-app` is the page field and the classes below are for content sitting
+ * directly on it — headings, straplines, step labels. Anything inside a Card is
+ * on white and keeps its ordinary grey scale, which is why these are opt-in
+ * classes rather than a blanket override of text-gray-*.
+ *
+ * The gradient is scoped to `.brand-surface` — the signed-out screens — not to
+ * the whole document. Behind the login the app is working software: damage
+ * photos, prices and red/amber verdicts all need a neutral ground. So the
+ * gradient introduces the brand and then gets out of the way.
+ *
+ * Text reverses out only INSIDE a `.brand-surface`, which is why these rules are
+ * descendant-scoped rather than keyed off `data-brand-surface` alone. The same
+ * `.text-on-app` therefore reads dark on the dashboard and white on sign-in.
+ */
+.bg-app {
+  background-color: #f9fafb; /* gray-50 */
+}
+.text-on-app {
+  color: #111827; /* gray-900 */
+}
+.text-on-app-muted {
+  color: #6b7280; /* gray-500 */
+}
+/* Status text on the page field. */
+.text-on-app-danger {
+  color: #dc2626; /* red-600 */
+}
+.text-on-app-success {
+  color: #16a34a; /* green-600 */
+}
+/* Neutral pill on the page field — the inactive step in a stepper. */
+.chip-idle {
+  background-color: #e5e7eb; /* gray-200 */
+  color: #6b7280; /* gray-500 */
+}
+.rule-idle {
+  background-color: #e5e7eb;
+}
+/* Spinner track. Only the three sides Tailwind's `border-t-<colour>` does not
+   claim, so the two cannot fight over border-color. */
+.spinner-track {
+  border-right-color: #e5e7eb;
+  border-bottom-color: #e5e7eb;
+  border-left-color: #e5e7eb;
+}
+
+:root[data-brand-surface='gradient'] .brand-surface {
+  /* 135deg matches the diagonal on the brands' own hero. */
+  background-color: var(--brand-accent-from);
+  background-image: linear-gradient(
+    135deg,
+    var(--brand-accent-from),
+    var(--brand-accent-to)
+  );
+  background-attachment: fixed;
+}
+:root[data-brand-surface='gradient'] .brand-surface .text-on-app {
+  color: #fff;
+}
+:root[data-brand-surface='gradient'] .brand-surface .text-on-app-muted {
+  color: rgb(255 255 255 / 0.72);
 }

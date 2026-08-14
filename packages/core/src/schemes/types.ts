@@ -25,6 +25,22 @@ export interface EligibilityRules {
   /** Refer SEVERE damage to an Xpert rather than auto-price it. */
   referOnSevere: boolean;
   /**
+   * Whether the assessing model's own "this needs a human" flag refers a case
+   * that the rules above would otherwise accept. Default (absent) is true —
+   * the model's caution binds, which is how every case behaved before this was
+   * configurable.
+   *
+   * Set false for a company that would rather price a clean-on-the-rules case
+   * than wait on a review. It does NOT switch off the LOW-overall-confidence
+   * referral or the fraud screen: those say the assessment itself is unreliable,
+   * which is a different claim from "this one looks worth a second opinion".
+   *
+   * Read by the triage worker rather than by evaluateEligibility — the flag
+   * comes from the model, not from the damage — but it lives here because this
+   * is the per-company ruleset an admin edits.
+   */
+  referOnAiUncertainty?: boolean;
+  /**
    * Potential total loss threshold (TRX-6): auto-reject when the repair estimate
    * is at or above this percentage of the vehicle's value. Agreed default 80.
    * Only applied when the case carries a vehicle value.

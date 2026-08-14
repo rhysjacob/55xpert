@@ -1,19 +1,23 @@
 import { useParams, Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
 import { humanize } from '@corexpert/core';
+import { HeadingMotif } from '../branding/BrandMotif';
+import { useBrand } from '../branding/useBrand';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
 
 interface TriageResponse {
   caseId: string;
   referenceNo: string;
   status: string;
+  warrantyCompanyId?: string;
   vehicle?: { make?: string; model?: string; year?: number };
   triageResult: TriageResult | null;
+  siteAllocationRequestedAt?: string;
   images?: { imageType: string; url: string }[];
 }
 
@@ -25,6 +29,80 @@ const CONFIDENCE_COLORS: Record<TriageConfidence, string> = {
 
 function formatPence(pence: number): string {
   return `\u00A3${(pence / 100).toFixed(2)}`;
+}
+
+/**
+ * What a referred case says to the consumer.
+ *
+ * The neutral default is a status: an Xpert is looking at it. A warranty company
+ * that handles referrals in its own network instead gets its own wording plus a
+ * hand-off it can act on — offered only when the case actually belongs to that
+ * company, since a user can open any portal but a case has one tenant.
+ */
+function ReferralNotice({
+  caseId,
+  warrantyCompanyId,
+  requestedAt,
+}: {
+  caseId: string;
+  warrantyCompanyId?: string;
+  requestedAt?: string;
+}) {
+  const brand = useBrand();
+  const queryClient = useQueryClient();
+
+  const requestAllocation = useMutation({
+    mutationFn: () => api.post(`/api/v1/cases/${caseId}/site-allocation`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['triage', caseId] }),
+  });
+
+  const tenantMatches =
+    brand.warrantyCompanyId !== undefined && brand.warrantyCompanyId === warrantyCompanyId;
+  if (!brand.referral || !tenantMatches) {
+    return (
+      <>
+        <p className="font-semibold text-yellow-800">Sent to an Xpert for review</p>
+        <p className="text-sm text-yellow-700 mt-1">
+          We need a specialist to confirm this one before quoting. Reasons:
+        </p>
+      </>
+    );
+  }
+
+  if (requestedAt) {
+    return (
+      <>
+        <p className="font-semibold text-yellow-800">{brand.referral.requestedTitle}</p>
+        <p className="text-sm text-yellow-700 mt-1">{brand.referral.requestedDetail}</p>
+        <p className="text-sm text-yellow-700 mt-2">Why this was referred:</p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <p className="font-semibold text-yellow-800">
+        {brand.referral.before}
+        <button
+          type="button"
+          onClick={() => requestAllocation.mutate()}
+          disabled={requestAllocation.isPending}
+          className="underline underline-offset-2 hover:no-underline disabled:no-underline disabled:opacity-60"
+        >
+          {requestAllocation.isPending ? 'Sending…' : brand.referral.linkText}
+        </button>
+        {brand.referral.after}
+      </p>
+      {requestAllocation.isError && (
+        <p className="text-sm text-red-700 mt-1">
+          {requestAllocation.error instanceof Error
+            ? requestAllocation.error.message
+            : "That didn't go through. Please try again."}
+        </p>
+      )}
+      <p className="text-sm text-yellow-700 mt-2">Why this was referred:</p>
+    </>
+  );
 }
 
 function PanelRow({ panel }: { panel: DamagePanel }) {
@@ -74,7 +152,7 @@ export function TriageResultsPage() {
   if (isLoading) {
     return (
       <Layout>
-        <div className="text-center py-12 text-gray-500">Loading triage results...</div>
+        <div className="text-center py-12 text-on-app-muted">Loading triage results...</div>
       </Layout>
     );
   }
@@ -82,7 +160,7 @@ export function TriageResultsPage() {
   if (error || !data) {
     return (
       <Layout>
-        <div className="text-center py-12 text-red-500">
+        <div className="text-center py-12 text-on-app-danger">
           {error instanceof Error ? error.message : 'Failed to load results'}
         </div>
       </Layout>
@@ -94,9 +172,9 @@ export function TriageResultsPage() {
     return (
       <Layout>
         <div className="max-w-md mx-auto text-center py-16">
-          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-brand" />
-          <h1 className="text-xl font-semibold text-gray-900">Analysing your photos</h1>
-          <p className="mt-2 text-gray-500">
+          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 spinner-track border-t-brand" />
+          <h1 className="text-xl font-semibold text-on-app">Analysing your photos</h1>
+          <p className="mt-2 text-on-app-muted">
             Our AI is assessing the damage and estimating repair costs. This usually
             takes under a minute &mdash; the results will appear here automatically.
           </p>
@@ -109,8 +187,8 @@ export function TriageResultsPage() {
     return (
       <Layout>
         <div className="max-w-md mx-auto text-center py-16">
-          <h1 className="text-xl font-semibold text-gray-900">Assessment failed</h1>
-          <p className="mt-2 text-gray-500">
+          <h1 className="text-xl font-semibold text-on-app">Assessment failed</h1>
+          <p className="mt-2 text-on-app-muted">
             Something went wrong while analysing your photos. Please try submitting
             the case for assessment again.
           </p>
@@ -129,8 +207,11 @@ export function TriageResultsPage() {
       <div className="max-w-3xl mx-auto">
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Assessment Results</h1>
-            <p className="text-gray-500 mt-1">
+            <h1 className="flex items-center gap-3 text-2xl font-bold text-on-app">
+              <HeadingMotif />
+              Assessment Results
+            </h1>
+            <p className="text-on-app-muted mt-1">
               {data.referenceNo} | {data.vehicle?.make} {data.vehicle?.model}
             </p>
           </div>
@@ -153,10 +234,11 @@ export function TriageResultsPage() {
         )}
         {triageResult.eligibility?.verdict === 'REFER' && (
           <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="font-semibold text-yellow-800">Sent to an Xpert for review</p>
-            <p className="text-sm text-yellow-700 mt-1">
-              We need a specialist to confirm this one before quoting. Reasons:
-            </p>
+            <ReferralNotice
+              caseId={data.caseId}
+              warrantyCompanyId={data.warrantyCompanyId}
+              requestedAt={data.siteAllocationRequestedAt}
+            />
             <ul className="mt-2 list-disc list-inside text-sm text-yellow-700 space-y-1">
               {triageResult.eligibility.reasons
                 .filter((r) => r.verdict === 'REFER')
@@ -252,7 +334,7 @@ export function TriageResultsPage() {
         {/* Outcome is automatic — no publish action for the consumer. */}
         <div className="flex flex-col items-center gap-3">
           {data.status === 'PUBLISHED' && (
-            <p className="text-center text-green-600 font-medium">
+            <p className="text-center text-on-app-success font-medium">
               Automatically published to The Repair Xchange — repairers can now see this job.
             </p>
           )}

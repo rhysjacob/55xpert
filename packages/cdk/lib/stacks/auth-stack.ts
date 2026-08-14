@@ -19,6 +19,8 @@ export class AuthStack extends cdk.Stack {
   public readonly consumerClient: cognito.UserPoolClient;
   public readonly repairerClient: cognito.UserPoolClient;
   public readonly adminClient: cognito.UserPoolClient;
+  /** Per-brand consumer clients, keyed by brand id. */
+  public readonly whiteLabelClients: Record<string, cognito.UserPoolClient> = {};
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
@@ -36,6 +38,10 @@ export class AuthStack extends cdk.Stack {
         STAGE: config.stage,
         USERS_TABLE: props.usersTable.tableName,
         ORGANISATIONS_TABLE: props.organisationsTable.tableName,
+        // Static config, not a CloudFormation reference to the clients — those
+        // would reintroduce the UserPool -> Lambda -> Client -> UserPool cycle
+        // the runtime client-name lookup exists to avoid.
+        WHITE_LABEL_TENANTS: JSON.stringify(config.whiteLabelTenants),
       },
       description: 'Cognito post-confirmation trigger',
     });
@@ -118,6 +124,26 @@ export class AuthStack extends cdk.Stack {
       preventUserExistenceErrors: true,
     });
 
+    // One consumer client per white-label brand. The client is what binds a
+    // signup to its tenant: the post-confirmation trigger reads the client's
+    // name and stamps the matching WarrantyCompany onto the user, so the tenant
+    // arrives in a signed JWT instead of being asserted by the browser.
+    for (const [brand, tenantId] of Object.entries(config.whiteLabelTenants)) {
+      const id = `Consumer${brand.charAt(0).toUpperCase()}${brand.slice(1)}Client`;
+      const client = this.userPool.addClient(id, {
+        userPoolClientName: `corexpert-${config.stage}-consumer-${brand}`,
+        authFlows: { userSrp: true },
+        preventUserExistenceErrors: true,
+      });
+
+      this.whiteLabelClients[brand] = client;
+
+      new cdk.CfnOutput(this, `${id}Id`, {
+        value: client.userPoolClientId,
+        description: `consumer app client for the ${brand} brand (tenant ${tenantId})`,
+      });
+    }
+
     // The post-confirmation Lambda resolves the signup role by looking up the
     // app client's name at runtime. Granting against a wildcard user-pool ARN
     // (rather than this.userPool.userPoolArn) avoids a UserPool -> Lambda ->
@@ -127,6 +153,8 @@ export class AuthStack extends cdk.Stack {
         actions: [
           'cognito-idp:DescribeUserPoolClient',
           'cognito-idp:AdminAddUserToGroup',
+          // Stamps custom:warrantyCompanyId so the tenant rides in the JWT.
+          'cognito-idp:AdminUpdateUserAttributes',
         ],
         resources: [`arn:aws:cognito-idp:${this.region}:${this.account}:userpool/*`],
       }),

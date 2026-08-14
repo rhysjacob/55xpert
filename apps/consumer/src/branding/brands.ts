@@ -6,6 +6,7 @@
  * a DNS/CloudFront alias — not a second build, bucket or pipeline. Vite inlines
  * `VITE_*` at build time, which is exactly what we are avoiding here.
  */
+import type { MotifId } from './BrandMotif';
 
 export interface Brand {
   /** Stable key, also accepted by the ?brand= demo override. */
@@ -28,15 +29,61 @@ export interface Brand {
   logoIsLockup?: boolean;
   /** Reversed-out logo, required when navTheme is 'dark'. */
   logoUrlOnDark?: string;
+  /** Tab icon. Self-hosted like the logo; SVG so one file covers every size. */
+  faviconUrl?: string;
   /** 'dark' renders the nav as a black bar, as on a dark marketing site. */
   navTheme?: 'light' | 'dark';
-  /** Accent gradient, used sparingly — a hairline, not a paint job. */
+  /** Accent gradient: the hairline under a dark nav, and the page surface when
+   *  `surface` is 'gradient'. */
   accentFrom?: string;
   accentTo?: string;
+  /**
+   * Page background. 'gradient' paints the accent gradient across the whole
+   * app — cards stay white on top of it — for brands whose own site is built
+   * on a colour field. Default is the neutral light grey.
+   */
+  surface?: 'light' | 'gradient';
+  /** Graphic device from the brand's own site. See BrandMotif.tsx. */
+  motif?: MotifId;
   /** Webfont stack. fontUrl is injected only for brands that set it. */
   fontBody?: string;
   fontHeading?: string;
   fontUrl?: string;
+  /**
+   * Cognito app client for this brand (AuthStack output
+   * Consumer<Brand>ClientId). Signing up against it is what binds the user to
+   * this brand's warranty tenant server-side. Omit to use the default client.
+   */
+  userPoolClientId?: string;
+  /**
+   * The warranty tenant this brand's portal belongs to. Only used to check that
+   * a case actually belongs to this tenant before showing tenant-specific
+   * wording — the portal a case is *viewed* on proves nothing, since any user
+   * can reach any portal. Never sent to the API; the server takes the tenant
+   * from the signed token.
+   */
+  warrantyCompanyId?: string;
+  /**
+   * What this company says when a case is referred rather than priced. Brands
+   * that set it are saying "we handle referrals ourselves" — the consumer is
+   * offered a hand-off to one of the company's own sites instead of the neutral
+   * "an Xpert is reviewing this".
+   */
+  referral?: BrandReferralCopy;
+}
+
+/**
+ * Referral wording, split so the action reads as part of the sentence rather
+ * than as a button bolted underneath it.
+ */
+export interface BrandReferralCopy {
+  /** Sentence around the action, e.g. "… – ", "click here", " to allocate …". */
+  before: string;
+  linkText: string;
+  after: string;
+  /** Shown in place of the above once the hand-off has been requested. */
+  requestedTitle: string;
+  requestedDetail: string;
 }
 
 export const DEFAULT_BRAND: Brand = {
@@ -49,9 +96,11 @@ export const DEFAULT_BRAND: Brand = {
 };
 
 /**
- * Taken from precisionrepairgroup.com: the site is monochrome — near-black,
- * white and greys — so the primary is their black rather than a colour.
- * Their display face (Polysans) is licensed to them and deliberately not used.
+ * Taken from precisionrepairgroup.com. Their chrome is monochrome — near-black
+ * nav, white and greys — so the primary is their black; the blue→violet
+ * gradient is the field their hero sits on and is carried here as the page
+ * surface. Their display face (Polysans) is licensed to them and deliberately
+ * not used.
  *
  * The logo is their horizontal lockup (425x189), self-hosted in public/brands
  * rather than hotlinked. They publish it white-on-transparent for their dark
@@ -67,11 +116,17 @@ const PRECISION_BRAND: Brand = {
   logoUrl: '/brands/precision-logo.svg',
   logoIsLockup: true,
   logoUrlOnDark: '/brands/precision-logo-white.svg',
+  faviconUrl: '/brands/precision-favicon.svg',
   navTheme: 'dark',
-  // The only colour on their site: the gradient inside the P mark. Everything
-  // else is black, white and grey — so this is an accent, never a fill.
+  // Their blue→violet: the gradient inside the P mark, and the field their own
+  // hero sits on. Carried across the portal surface at Rhys's request so the
+  // two read as one property; cards stay white so damage photos and the
+  // red/amber verdict banners keep their meaning.
   accentFrom: '#004ee8',
   accentTo: '#9e60fd',
+  surface: 'gradient',
+  // The fast-forward chevrons from their hero.
+  motif: 'chevrons',
   // What their site actually renders in. Both are open-licensed (SIL OFL), so
   // matching their typography is legitimate — unlike Polysans, which their
   // stylesheet declares but never applies.
@@ -79,6 +134,22 @@ const PRECISION_BRAND: Brand = {
   fontHeading: "'Mona Sans', 'Inter', system-ui, sans-serif",
   fontUrl:
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Mona+Sans:wght@300;400;500;600;700&display=swap',
+  // dev: AuthStack output ConsumerPrecisionClientId. Signing up here is what
+  // binds the user to the Precision Repair Group tenant.
+  userPoolClientId: '2ps8ohl1sftbq7fm6ni23v1p8i',
+  // dev: the Precision Repair Group row in the warranty-companies table.
+  warrantyCompanyId: '4496a9cb-01fa-436b-8dc9-c6553d61c8ad',
+  // Precision take referred work into their own sites rather than leaving the
+  // customer waiting on a review, so their referral wording is an offer, not a
+  // status. Their words, verbatim.
+  referral: {
+    before: 'This does NOT qualify for mobile repair solution – ',
+    linkText: 'click here',
+    after: ' to allocate to most suitable Precision Site',
+    requestedTitle: 'Sent to Precision Repair Group',
+    requestedDetail:
+      "They'll allocate the most suitable site for this repair and contact you directly.",
+  },
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];
@@ -129,6 +200,12 @@ export function applyBrand(brand: Brand): void {
   if (brand.fontBody) root.style.setProperty('--brand-font-body', brand.fontBody);
   if (brand.fontHeading) root.style.setProperty('--brand-font-heading', brand.fontHeading);
 
+  // Drives the surface rules in index.css: which page background is painted and
+  // whether text sitting directly on it reverses out. An attribute rather than
+  // a class so the CSS reads as a state, and so nothing can strip it by
+  // rewriting className on <html>.
+  root.dataset['brandSurface'] = brand.surface ?? 'light';
+
   // Only brands that specify a webfont pay for the request.
   if (brand.fontUrl && !document.querySelector(`link[data-brand-font]`)) {
     const link = document.createElement('link');
@@ -136,6 +213,16 @@ export function applyBrand(brand: Brand): void {
     link.href = brand.fontUrl;
     link.setAttribute('data-brand-font', brand.id);
     document.head.appendChild(link);
+  }
+
+  // Tab icon. Replaces any existing <link rel="icon"> rather than appending, so
+  // a brand's mark can't lose to the document's own icon.
+  if (brand.faviconUrl) {
+    const icon =
+      document.querySelector<HTMLLinkElement>('link[rel="icon"]') ??
+      document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }));
+    icon.type = 'image/svg+xml';
+    icon.href = brand.faviconUrl;
   }
 
   document.title = brand.nameAccent ? `${brand.name} ${brand.nameAccent}` : brand.name;

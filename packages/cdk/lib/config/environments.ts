@@ -13,6 +13,17 @@ export interface EnvironmentConfig {
   /** Default tenant id (TRX-77) that owns consumer + legacy cases. */
   defaultWarrantyCompanyId: string;
   /**
+   * White-label consumer portals: brand id (as in the consumer app's
+   * branding/brands.ts) -> the WarrantyCompany that owns cases submitted there.
+   *
+   * Each entry gets its own Cognito app client, named
+   * `corexpert-{stage}-consumer-{brand}`. The tenant is resolved from that
+   * client at signup and stamped onto the user, so it rides in the signed JWT
+   * rather than being asserted by the browser — hostnames and Origin headers
+   * can be forged, and the tenant decides which repairer network sees the job.
+   */
+  whiteLabelTenants: Record<string, string>;
+  /**
    * Public base URL of the repairer app — Stripe checkout success/cancel
    * redirects return here (else they fall back to http://localhost:3001).
    */
@@ -72,10 +83,14 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     oneAutoBaseUrl: 'https://sandbox.oneautoapi.com',
     warrantyScheme: 'company-2025',
     defaultWarrantyCompanyId: 'demotenant',
+    whiteLabelTenants: {
+      precision: '4496a9cb-01fa-436b-8dc9-c6553d61c8ad', // Precision Repair Group
+    },
     // Repairer app CloudFront distribution (Corexpert-dev-Frontend output).
     frontendUrl: 'https://d1pyyy434cv4q3.cloudfront.net',
     appOrigins: [
       'https://d3azgpmicty14y.cloudfront.net', // consumer
+      'https://d1tl5y9m0dbx9s.cloudfront.net', // consumer, precision white-label
       'https://d1pyyy434cv4q3.cloudfront.net', // repairer
       'https://d1pqg5zsx4s9wp.cloudfront.net', // admin
       'http://localhost:3000',
@@ -109,6 +124,9 @@ export const ENVIRONMENTS: Record<string, EnvironmentConfig> = {
     oneAutoBaseUrl: 'https://api.oneautoapi.com',
     warrantyScheme: 'company-2025',
     defaultWarrantyCompanyId: 'demotenant',
+    // Empty until a white-label client goes live in production. Adding an entry
+    // creates its app client; the tenant id must be a real WarrantyCompany.
+    whiteLabelTenants: {},
     // Production repairer domain — Stripe checkout redirects here.
     // MUST be updated to the real custom domain before go-live.
     frontendUrl: process.env['PROD_FRONTEND_URL'] ?? '',

@@ -37,8 +37,13 @@ async function resultHandler(event: APIGatewayProxyEventV2): Promise<APIGatewayP
     caseId: caseData.caseId,
     referenceNo: caseData.referenceNo,
     status: caseData.status,
+    // The tenant is returned so the portal can show a warranty company's own
+    // wording for a referral. It has to come from the case rather than the
+    // hostname: a user can reach any portal, but the case belongs to one tenant.
+    warrantyCompanyId: caseData.warrantyCompanyId,
     vehicle: caseData.vehicle,
     triageResult: caseData.triageResult ?? null,
+    siteAllocationRequestedAt: caseData.siteAllocationRequestedAt,
     xpertReviews: caseData.xpertReviews,
     images,
   });

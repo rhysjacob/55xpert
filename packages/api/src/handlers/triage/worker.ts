@@ -187,10 +187,17 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
     // eligibility call. A hard INELIGIBLE verdict normally never needs review —
     // but suspected fraud ALWAYS refers, overriding that shortcut, so a
     // fraudulent-looking case gets human eyes even when we wouldn't take it.
+    //
+    // The model's own "needs a human" flag is the one signal a company can opt
+    // out of (referOnAiUncertainty): it is the model asking for a second
+    // opinion on a case its own rules accept. LOW overall confidence and the
+    // fraud screen stay binding — those say the assessment cannot be trusted,
+    // and no pricing decision should be made on top of one.
+    const aiUncertaintyRefers = scheme.eligibility.referOnAiUncertainty !== false;
     const requiresXpertReview =
       fraudSuspected ||
       (eligibility.verdict !== 'INELIGIBLE' &&
-        (aiResult.requiresHumanReview ||
+        ((aiUncertaintyRefers && aiResult.requiresHumanReview) ||
           aiResult.overallConfidence === 'LOW' ||
           eligibility.verdict === 'REFER'));
 
@@ -249,6 +256,17 @@ export async function handler(event: TriageWorkerEvent): Promise<void> {
       totalCost: totalEstimatedCost,
       eligibility: eligibility.verdict,
       requiresReview: requiresXpertReview,
+      // Which signal sent it for review. Four separate conditions land on one
+      // status, so without this "why did this case refer?" can only be answered
+      // by re-deriving it from the stored result.
+      reviewTriggers: requiresXpertReview
+        ? [
+            fraudSuspected ? 'FRAUD' : '',
+            aiUncertaintyRefers && aiResult.requiresHumanReview ? 'AI_REQUESTED_REVIEW' : '',
+            aiResult.overallConfidence === 'LOW' ? 'LOW_CONFIDENCE' : '',
+            eligibility.verdict === 'REFER' ? 'ELIGIBILITY_REFER' : '',
+          ].filter(Boolean)
+        : [],
       status: published ? 'PUBLISHED' : nextStatus,
     });
   } catch (error) {
