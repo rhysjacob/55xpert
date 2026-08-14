@@ -10,6 +10,55 @@ import type { Case, Vehicle, VehicleLookupResponse } from '@corexpert/core';
 
 const STEPS = ['Vehicle', 'Details', 'Images', 'Review'];
 
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp,image/heic';
+
+/**
+ * A file picker that looks like a button.
+ *
+ * A bare <input type="file"> renders as the browser's own control — small grey
+ * "Choose File" text that reads as a caption rather than the main action on the
+ * step. The input is still the control (label-wrapped, so a click anywhere on
+ * the button opens the picker); only its appearance is ours. `sr-only` rather
+ * than `hidden` keeps it focusable, and `focus-within` puts the ring on the
+ * button the user can actually see.
+ */
+function FilePickerButton({
+  label,
+  onFiles,
+  variant,
+  multiple = false,
+}: {
+  label: string;
+  onFiles: (files: File[]) => void;
+  variant: 'primary' | 'secondary';
+  multiple?: boolean;
+}) {
+  const styles =
+    variant === 'primary'
+      ? 'bg-brand text-white hover:bg-brand-dark px-6 py-3 text-base'
+      : 'bg-gray-100 text-gray-900 hover:bg-gray-200 px-4 py-2 text-sm';
+
+  return (
+    <label
+      className={`inline-flex cursor-pointer items-center justify-center rounded-lg font-medium transition-colors focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 ${styles}`}
+    >
+      <input
+        type="file"
+        multiple={multiple}
+        accept={ACCEPTED_IMAGE_TYPES}
+        className="sr-only"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          if (files.length) onFiles(files);
+          // Clear it so picking the same file again still fires a change event.
+          e.target.value = '';
+        }}
+      />
+      {label}
+    </label>
+  );
+}
+
 export function NewCasePage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -99,7 +148,7 @@ export function NewCasePage() {
 
   // Distribute a multi-file selection across the still-empty slots, in order.
   const IMAGE_SLOTS = ['REGISTRATION_PLATE', 'DAMAGE_ANGLE_1', 'DAMAGE_ANGLE_2', 'DAMAGE_ANGLE_3'] as const;
-  const handleFiles = (files: FileList) => {
+  const handleFiles = (files: File[] | FileList) => {
     const openSlots = IMAGE_SLOTS.filter((t) => uploadStatus[t] === 'pending');
     Array.from(files)
       .slice(0, openSlots.length)
@@ -240,20 +289,19 @@ export function NewCasePage() {
               </p>
 
               {openSlotCount > 0 && (
-                <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-4 text-center">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Select photos ({openSlotCount} slot{openSlotCount === 1 ? '' : 's'} remaining)
+                <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 text-center">
+                  <p className="text-sm font-medium text-gray-700 mb-3">
+                    {openSlotCount} slot{openSlotCount === 1 ? '' : 's'} remaining
                   </p>
-                  <input
-                    type="file"
+                  <FilePickerButton
                     multiple
-                    accept="image/jpeg,image/png,image/webp,image/heic"
-                    className="text-sm"
-                    onChange={(e) => {
-                      if (e.target.files?.length) handleFiles(e.target.files);
-                      e.target.value = '';
-                    }}
+                    variant="primary"
+                    label="Choose photos"
+                    onFiles={(files) => handleFiles(files)}
                   />
+                  <p className="text-xs text-gray-500 mt-3">
+                    JPG, PNG, WEBP or HEIC
+                  </p>
                 </div>
               )}
 
@@ -281,12 +329,11 @@ export function NewCasePage() {
                     ) : status === 'uploading' ? (
                       <p className="text-sm text-blue-600">Uploading...</p>
                     ) : (
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/heic"
-                        className="text-sm"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
+                      <FilePickerButton
+                        variant="secondary"
+                        label="Choose file"
+                        onFiles={(files) => {
+                          const file = files[0];
                           if (file) handleImageUpload(type, file);
                         }}
                       />
