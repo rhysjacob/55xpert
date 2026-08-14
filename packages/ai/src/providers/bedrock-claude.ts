@@ -121,6 +121,17 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
     const body = JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: MAX_TOKENS,
+      // Greedy decoding. This assessment decides accept-or-reject against fixed
+      // numeric thresholds, so sampling from the default temperature meant the
+      // same photos could land either side of a limit: two submissions of one
+      // identical image set returned a 40cm and a 45cm rear quarter against a
+      // 40cm limit (±4cm band), and so one REFER and one INELIGIBLE.
+      //
+      // This does not make the model *right* about a size it is reading off a
+      // photograph, and 0 is not a determinism guarantee. It removes the
+      // deliberate randomness, so a customer resubmitting the same photos gets
+      // the same answer.
+      temperature: 0,
       system: systemPrompt,
       messages,
       output_config: { format: { type: 'json_schema', schema: RESPONSE_SCHEMA } },
