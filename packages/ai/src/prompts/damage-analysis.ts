@@ -33,7 +33,13 @@ If the steering wheel is visible through the glass, it sits on the offside — u
 
 Panels that are easy to confuse: a WING is the front panel over the front wheel; a QUARTER is the rear panel over the rear wheel; a SILL is the narrow panel below the doors between the wheel arches.
 
-The images in one submission are all the SAME vehicle. Use the clearest view — usually the registration plate photo — to establish the orientation, then apply it to the close-up shots. If a close-up genuinely does not show which end or side it is, lower the confidenceScore for that panel rather than guessing.
+Orient EVERY PHOTO SEPARATELY. The images in one submission are the same vehicle, but they are usually NOT the same end of it — a typical set has a front shot, a rear shot and one or two close-ups. A yellow plate in one photo tells you nothing about what another photo shows.
+
+So: for each image, find the cues IN THAT IMAGE. Never carry an orientation from one photo to another, and never conclude "this is the rear" because the set contains a rear-facing photo. Damage visible in a front-facing image is damage to a FRONT panel, whatever the other images show.
+
+A close-up with no plate still has cues: a grille or air intake immediately above a bumper means the FRONT bumper; a bumper below a tailgate opening, a towbar or an exhaust means the REAR. If a close-up genuinely shows neither, say so in the description and lower the confidenceScore for that panel rather than borrowing an assumption from another photo.
+
+Do not report a panel as damaged in one place and undamaged in the summary. If the front bumper is scuffed in any image, the front bumper is damaged.
 
 Valid damage types: DENT, SCRATCH, CRACK, SHATTER, DEFORMATION, PAINT_DAMAGE, STRUCTURAL
 

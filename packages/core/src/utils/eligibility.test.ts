@@ -79,3 +79,34 @@ describe('evaluateEligibility', () => {
     expect(r.verdict).toBe('INELIGIBLE');
   });
 });
+
+describe('evaluateEligibility — repeated panels', () => {
+  it('counts two damage areas on one panel as one damaged panel', () => {
+    // Five entries but three panels: under the limit of 4.
+    const r = evaluateEligibility(
+      {
+        panels: [
+          { ...goodPanel, panelName: 'rear_bumper' },
+          { ...goodPanel, panelName: 'rear_bumper' },
+          { ...goodPanel, panelName: 'offside_front_door' },
+          { ...goodPanel, panelName: 'offside_front_door' },
+          { ...goodPanel, panelName: 'nearside_sill' },
+        ],
+      },
+      RULES,
+    );
+    expect(r.reasons.some((x) => x.rule === 'PANEL_COUNT')).toBe(false);
+    expect(r.verdict).toBe('ELIGIBLE');
+  });
+
+  it('still rejects when the distinct panel count exceeds the maximum', () => {
+    const names = ['rear_bumper', 'front_bumper', 'offside_sill', 'nearside_sill', 'tailgate'];
+    const r = evaluateEligibility(
+      { panels: names.map((panelName) => ({ ...goodPanel, panelName })) },
+      RULES,
+    );
+    const hit = r.reasons.find((x) => x.rule === 'PANEL_COUNT');
+    expect(hit?.detail).toContain('5 damaged panels');
+    expect(r.verdict).toBe('INELIGIBLE');
+  });
+});

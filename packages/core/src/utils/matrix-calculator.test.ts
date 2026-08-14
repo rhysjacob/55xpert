@@ -62,6 +62,43 @@ describe('calculateMatrixQuote', () => {
 });
 
 describe('deriveMatrixInput', () => {
+  // A real case (CX-20260814-KE53) came back with two rear_bumper entries — a
+  // scuff and a crack on the one bumper — and was quoted "2× Bumper — Repair &
+  // Paint", £916 too much, then auto-published at that price.
+  it('prices one bumper once when the assessment lists it twice', () => {
+    const input = deriveMatrixInput([
+      { panelName: 'rear_bumper' },
+      { panelName: 'rear_bumper' },
+    ]);
+    expect(input.bumperCount).toBe(1);
+    expect(input.panelCount).toBe(0);
+  });
+
+  it('still charges for two bumpers when both ends are damaged', () => {
+    const input = deriveMatrixInput([
+      { panelName: 'front_bumper' },
+      { panelName: 'rear_bumper' },
+    ]);
+    expect(input.bumperCount).toBe(2);
+  });
+
+  it('counts a repeated standard panel once', () => {
+    const input = deriveMatrixInput([
+      { panelName: 'offside_front_door' },
+      { panelName: 'offside_front_door' },
+      { panelName: 'offside_rear_door' },
+    ]);
+    expect(input.panelCount).toBe(2);
+  });
+
+  it('counts a repeated mirror once', () => {
+    const input = deriveMatrixInput([
+      { panelName: 'nearside_mirror' },
+      { panelName: 'nearside_mirror' },
+    ]);
+    expect(input.mirrorCount).toBe(1);
+  });
+
   it('maps standard panels to the panel grid and bumpers to the bumper row', () => {
     const input = deriveMatrixInput([
       { panelName: 'nearside_front_wing' },

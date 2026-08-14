@@ -43,13 +43,16 @@ export function evaluateEligibility(input: EligibilityInput, rules: EligibilityR
   const reasons: EligibilityReason[] = [];
   let verdict: EligibilityVerdict = 'ELIGIBLE';
 
-  // Rule 1 — panel count (deterministic, no borderline).
-  if (input.panels.length > rules.maxDamagedPanels) {
+  // Rule 1 — panel count (deterministic, no borderline). Counts DISTINCT
+  // panels: the assessment may list one panel twice (a scuff and a crack on the
+  // same bumper), and two damage areas on one panel is still one damaged panel.
+  const damagedPanelCount = new Set(input.panels.map((p) => p.panelName)).size;
+  if (damagedPanelCount > rules.maxDamagedPanels) {
     verdict = worst(verdict, 'INELIGIBLE');
     reasons.push({
       rule: 'PANEL_COUNT',
       verdict: 'INELIGIBLE',
-      detail: `${input.panels.length} damaged panels exceeds the maximum of ${rules.maxDamagedPanels}.`,
+      detail: `${damagedPanelCount} damaged panels exceeds the maximum of ${rules.maxDamagedPanels}.`,
     });
   }
 

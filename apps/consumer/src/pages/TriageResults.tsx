@@ -105,6 +105,29 @@ function ReferralNotice({
   );
 }
 
+/**
+ * What a published case says to the consumer.
+ *
+ * The default names the marketplace, because for a consumer-submitted case that
+ * is genuinely what happened — the job went out to the network. A warranty
+ * company whose own repairers take the work describes it in its own terms, and
+ * "The Repair Xchange" is a name their customer has no reason to have heard of.
+ * Tenant-gated like the referral copy, for the same reason.
+ */
+function PublishedNotice({ warrantyCompanyId }: { warrantyCompanyId?: string }) {
+  const brand = useBrand();
+  const tenantMatches =
+    brand.warrantyCompanyId !== undefined && brand.warrantyCompanyId === warrantyCompanyId;
+
+  return (
+    <p className="text-center text-on-app-success font-medium">
+      {brand.publishedNotice && tenantMatches
+        ? brand.publishedNotice
+        : 'Automatically published to The Repair Xchange — repairers can now see this job.'}
+    </p>
+  );
+}
+
 function PanelRow({ panel }: { panel: DamagePanel }) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
@@ -263,7 +286,7 @@ export function TriageResultsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {triageResult.panels.length}
+                  {new Set(triageResult.panels.map((p) => p.panelName)).size}
                 </p>
                 <p className="text-xs text-gray-500">Panels affected</p>
               </div>
@@ -334,9 +357,7 @@ export function TriageResultsPage() {
         {/* Outcome is automatic — no publish action for the consumer. */}
         <div className="flex flex-col items-center gap-3">
           {data.status === 'PUBLISHED' && (
-            <p className="text-center text-on-app-success font-medium">
-              Automatically published to The Repair Xchange — repairers can now see this job.
-            </p>
+            <PublishedNotice warrantyCompanyId={data.warrantyCompanyId} />
           )}
           <Link to="/">
             <Button variant="secondary">Back to Dashboard</Button>
