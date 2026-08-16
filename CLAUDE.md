@@ -60,7 +60,9 @@ pnpm -r test
 pnpm -r lint
 
 # CDK deploy (dev)
-cd packages/cdk && npx cdk deploy --all -c stage=dev
+# The context key is `env`, not `stage` — bin/app.ts reads tryGetContext('env'),
+# so `-c stage=dev` silently falls through to the default stage.
+cd packages/cdk && npx cdk deploy --all -c env=dev --require-approval never
 
 # Start consumer app
 cd apps/consumer && pnpm dev
