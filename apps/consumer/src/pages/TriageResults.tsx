@@ -190,22 +190,11 @@ export function TriageResultsPage() {
     );
   }
 
-  // Assessment still running — keep the user informed while the query polls.
-  if (data.status === 'TRIAGE_PENDING' || !data.triageResult) {
-    return (
-      <Layout>
-        <div className="max-w-md mx-auto text-center py-16">
-          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 spinner-track border-t-brand" />
-          <h1 className="text-xl font-semibold text-on-app">Analysing your photos</h1>
-          <p className="mt-2 text-on-app-muted">
-            Our AI is assessing the damage and estimating repair costs. This usually
-            takes under a minute &mdash; the results will appear here automatically.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
-
+  // Ordered before the spinner: a failed assessment has no triageResult either,
+  // so the `!data.triageResult` arm below used to swallow TRIAGE_FAILED and this
+  // branch was unreachable. The poll only runs while TRIAGE_PENDING, so nothing
+  // ever replaced the spinner — CX-20260816-L0N4 sat on "Analysing your photos"
+  // for good after the worker had already given up on it.
   if (data.status === 'TRIAGE_FAILED') {
     return (
       <Layout>
@@ -218,6 +207,22 @@ export function TriageResultsPage() {
           <Link to="/" className="mt-6 inline-block">
             <Button variant="secondary">Back to Dashboard</Button>
           </Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Assessment still running — keep the user informed while the query polls.
+  if (data.status === 'TRIAGE_PENDING' || !data.triageResult) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto text-center py-16">
+          <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 spinner-track border-t-brand" />
+          <h1 className="text-xl font-semibold text-on-app">Analysing your photos</h1>
+          <p className="mt-2 text-on-app-muted">
+            Our AI is assessing the damage and estimating repair costs. This usually
+            takes under a minute &mdash; the results will appear here automatically.
+          </p>
         </div>
       </Layout>
     );

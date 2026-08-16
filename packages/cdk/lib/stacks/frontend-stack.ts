@@ -54,9 +54,12 @@ export class FrontendStack extends cdk.Stack {
     const destroy = config.removalPolicy === 'destroy';
     const removal = destroy ? cdk.RemovalPolicy.DESTROY : cdk.RemovalPolicy.RETAIN;
     const buckets: Record<string, s3.Bucket> = {};
+    const distPaths: Record<string, string> = {};
+    const shells: Record<string, s3deploy.BucketDeployment> = {};
 
     for (const spa of SPAS) {
       const distPath = path.join(__dirname, '..', '..', '..', '..', 'apps', spa.app, 'dist');
+      distPaths[spa.app] = distPath;
 
       if (!fs.existsSync(path.join(distPath, 'index.html'))) {
         throw new Error(
@@ -107,6 +110,7 @@ export class FrontendStack extends cdk.Stack {
       });
       // Assets deployment prunes; it must land before the shell is re-uploaded.
       shell.node.addDependency(assets);
+      shells[spa.app] = shell;
 
       this.distributionDomains[spa.app] = distribution.distributionDomainName;
 
@@ -132,12 +136,48 @@ export class FrontendStack extends cdk.Stack {
       throw new Error('Consumer bucket missing — white-label distributions cannot be created.');
     }
 
+    const consumerDistPath = distPaths['consumer'];
+    const consumerShell = shells['consumer'];
+    if (!consumerDistPath || !consumerShell) {
+      throw new Error('Consumer build output missing — white-label distributions cannot be created.');
+    }
+
     for (const label of WHITE_LABELS) {
       const distribution = this.spaDistribution(
         `${label.id}Distribution`,
         consumerBucket,
         `corexpert-${config.stage} consumer (${label.brand})`,
       );
+
+      // Each white-label portal is its own CloudFront distribution over the
+      // shared consumer bucket, so it has its own edge cache — and only the
+      // distribution handed to a BucketDeployment gets invalidated. Without
+      // this, a release invalidated the main consumer distribution and left
+      // every white-label portal to expire on its own.
+      //
+      // In practice index.html is served max-age=0/must-revalidate and the
+      // assets are content-hashed, so a portal does pick up a new release
+      // without an invalidation. This is the belt to that pair of braces: it
+      // makes the guarantee explicit rather than dependent on those headers
+      // staying exactly as they are.
+      //
+      // Re-uploads index.html only (prune: false), which is what carries the
+      // asset hashes; the fingerprinted files are already in the bucket from
+      // the consumer deployment above.
+      const invalidation = new s3deploy.BucketDeployment(this, `${label.id}Shell`, {
+        sources: [s3deploy.Source.asset(consumerDistPath, { exclude: ['*', '!index.html'] })],
+        destinationBucket: consumerBucket,
+        distribution,
+        distributionPaths: ['/*'],
+        prune: false,
+        cacheControl: [
+          s3deploy.CacheControl.setPublic(),
+          s3deploy.CacheControl.maxAge(cdk.Duration.seconds(0)),
+          s3deploy.CacheControl.mustRevalidate(),
+        ],
+      });
+      // Must follow the consumer deployment, which prunes the bucket.
+      invalidation.node.addDependency(consumerShell);
 
       this.distributionDomains[`consumer-${label.brand}`] = distribution.distributionDomainName;
 

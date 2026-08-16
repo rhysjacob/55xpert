@@ -98,6 +98,21 @@ type BedrockContent =
   | { type: 'text'; text: string }
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
 
+/**
+ * Whether Bedrock rejected the request because this model does not accept
+ * `output_config`, as opposed to any other validation failure — a bad image, an
+ * oversized payload — which must still surface rather than be silently retried.
+ */
+function isUnsupportedOutputConfig(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  const { name, message } = err as { name?: unknown; message?: unknown };
+  return (
+    name === 'ValidationException' &&
+    typeof message === 'string' &&
+    message.includes('output_config')
+  );
+}
+
 interface BedrockResponse {
   content: Array<{ type: string; text?: string }>;
   stop_reason: string;
@@ -150,7 +165,7 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
       { role: 'user', content: userContent },
     ];
 
-    const body = JSON.stringify({
+    const baseBody = {
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: MAX_TOKENS,
       // Greedy decoding. This assessment decides accept-or-reject against fixed
@@ -166,17 +181,40 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
       temperature: 0,
       system: systemPrompt,
       messages,
-      output_config: { format: { type: 'json_schema', schema: RESPONSE_SCHEMA } },
-    });
+    };
 
-    const command = new InvokeModelCommand({
-      modelId: this.modelId,
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: new TextEncoder().encode(body),
-    });
+    const invoke = (body: unknown) =>
+      this.client.send(
+        new InvokeModelCommand({
+          modelId: this.modelId,
+          contentType: 'application/json',
+          accept: 'application/json',
+          body: new TextEncoder().encode(JSON.stringify(body)),
+        }),
+      );
 
-    const response = await this.client.send(command);
+    let response;
+    try {
+      response = await invoke({
+        ...baseBody,
+        output_config: { format: { type: 'json_schema', schema: RESPONSE_SCHEMA } },
+      });
+    } catch (err) {
+      // Not every Claude model on Bedrock accepts `output_config`. The admin
+      // model picker can point triage at any of them at runtime, and choosing
+      // one that does not rejects EVERY assessment with
+      // "output_config.format: Extra inputs are not permitted" about a second
+      // in — which is how CX-20260816-L0N4 and everything after it failed the
+      // moment the model was switched to Opus 4.8.
+      //
+      // Falling back to a plain call keeps triage working on any vision model:
+      // the JSON-only system prompt still asks for the same shape and
+      // parseTriageResponse already exists to read it defensively. Structured
+      // output is the guarantee, not the mechanism.
+      if (!isUnsupportedOutputConfig(err)) throw err;
+      response = await invoke(baseBody);
+    }
+
     const responseBody = JSON.parse(
       new TextDecoder().decode(response.body),
     ) as BedrockResponse;

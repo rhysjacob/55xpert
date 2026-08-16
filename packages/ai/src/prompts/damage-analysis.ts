@@ -92,7 +92,14 @@ STEP 1 — fill in "imageFindings", one entry per image, in the order the images
 
 Beware the commonest error on a close-up: the horizontal slats of a front air intake, and the shut-line and handle of a rear door, can look alike in a tight crop. Slats that repeat in a regular louvred pattern above a bumper are an AIR INTAKE and mean FRONT. A single horizontal gap with a handle beside it is a door shut-line and means REAR. If you cannot tell them apart, the answer is UNCLEAR.
 
-STEP 2 — fill in "panels". Every panel cites "fromImageNumber", the image you actually saw that damage in. Its front/rear naming MUST agree with the "end" you recorded for that image: damage seen in an image you called FRONT is on a front panel. Where the end was UNCLEAR, name the panel from the strongest cue in that same image and lower the confidenceScore accordingly — never borrow the orientation of a different photo.
+STEP 2 — fill in "panels". Every panel cites "fromImageNumber", the image you actually saw that damage in. Its front/rear naming MUST agree with the "end" you recorded for that image: damage seen in an image you called FRONT is on a front panel.
+
+RESOLVING AN UNCLEAR CLOSE-UP. A close-up you could not orient on its own is still usually resolvable from the rest of the set, and you must work through this before you name its panel:
+- Eliminate. If every image you identified as one end shows NO damage, then the damage is not at that end — so an UNCLEAR damaged close-up belongs to the OTHER end. A customer photographing an undamaged end and a damaged close-up of that same end does not happen.
+- Match. A close-up almost always shows the same damage as one of the wide shots, seen nearer. If a wide shot you called FRONT shows damage, an UNCLEAR damaged close-up is that same front damage unless something in it plainly says otherwise.
+- Only when the set genuinely settles nothing either way, say so in the description and set that panel's confidenceScore below 0.5.
+
+Never fall back on "rear" for a close-up you could not read. "Rear" is not the safe default — it is just a guess, and naming the wrong end sends the repair to the wrong panel.
 
 Response JSON schema:
 {
