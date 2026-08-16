@@ -3,6 +3,7 @@ import type { DamageType, DamageSeverity, RepairMethod, TriageConfidence } from 
 
 interface RawAiResponse {
   panels?: RawPanel[];
+  imageFindings?: RawImageFinding[];
   overallConfidence?: string;
   summary?: string;
   requiresHumanReview?: boolean;
@@ -10,6 +11,7 @@ interface RawAiResponse {
 
 interface RawPanel {
   panelName?: string;
+  fromImageNumber?: number;
   damageType?: string;
   severity?: string;
   repairMethod?: string;
@@ -17,6 +19,79 @@ interface RawPanel {
   description?: string;
   sizeEstimateCm?: number;
   sizeConfidence?: number;
+}
+
+interface RawImageFinding {
+  imageNumber?: number;
+  end?: string;
+  showsDamage?: boolean;
+}
+
+/**
+ * Drop panels placed at an end of the vehicle that no photograph supports.
+ *
+ * The model records, per image, which end it is looking at and whether that
+ * image shows damage. When it cannot orient a close-up it says UNCLEAR — and
+ * then, repeatedly, names the panel `rear_*` anyway. On CX-20260816-FPE2 the
+ * only REAR image was the plate shot with no damage on it, both FRONT images
+ * showed the damaged bumper, and it still returned a 35cm `rear_bumper` off the
+ * UNCLEAR close-up. Telling it not to guess did not stop it guessing, so the
+ * check is made here instead of asked for in the prompt.
+ *
+ * Deliberately narrow. A panel is dropped only when its cited image is UNCLEAR,
+ * NO image of the claimed end shows any damage, and some image of the opposite
+ * end does — i.e. the claim has zero photographic support and the alternative
+ * has direct support. Panels cited from an image the model DID orient are left
+ * alone even if they look odd; that is a judgement about the photograph, not a
+ * contradiction of it.
+ *
+ * The panel is removed rather than reassigned: the evidence says "not that end",
+ * which is not the same as knowing the right one, and inventing a panel name is
+ * worse than omitting one. Anything dropped forces human review, so the case
+ * reaches an Xpert rather than being quietly priced.
+ */
+function dropUnsupportedEnds(
+  panels: DetectedPanel[],
+  rawPanels: RawPanel[],
+  findings: RawImageFinding[],
+): { panels: DetectedPanel[]; dropped: number } {
+  if (findings.length === 0) return { panels, dropped: 0 };
+
+  const damageAt = (end: string) =>
+    findings.some((f) => f.end === end && f.showsDamage === true);
+
+  // The end can sit anywhere in the name — `front_bumper` but also
+  // `nearside_rear_quarter`, `offside_tail_light`. Matching only a prefix let a
+  // `nearside_rear_quarter` off an unclear close-up straight through.
+  const endOf = (panelName: string): 'FRONT' | 'REAR' | undefined => {
+    const parts = panelName.split('_');
+    if (parts.includes('front') || parts.includes('headlight') || parts.includes('grille')) {
+      return 'FRONT';
+    }
+    if (
+      parts.includes('rear') ||
+      parts.includes('tailgate') ||
+      parts.includes('boot') ||
+      (parts.includes('tail') && parts.includes('light'))
+    ) {
+      return 'REAR';
+    }
+    return undefined;
+  };
+
+  const kept = panels.filter((panel, i) => {
+    const claimed = endOf(panel.panelName);
+    if (!claimed) return true;
+
+    const cited = rawPanels[i]?.fromImageNumber;
+    const finding = findings.find((f) => f.imageNumber === cited);
+    if (finding?.end !== 'UNCLEAR') return true;
+
+    const opposite = claimed === 'FRONT' ? 'REAR' : 'FRONT';
+    return damageAt(claimed) || !damageAt(opposite);
+  });
+
+  return { panels: kept, dropped: panels.length - kept.length };
 }
 
 const VALID_DAMAGE_TYPES = new Set(['DENT', 'SCRATCH', 'CRACK', 'SHATTER', 'DEFORMATION', 'PAINT_DAMAGE', 'STRUCTURAL']);
@@ -50,15 +125,18 @@ export function parseTriageResponse(
     throw new Error('AI response missing panels array');
   }
 
-  const panels: DetectedPanel[] = raw.panels
-    .filter((p): p is Required<RawPanel> =>
-      typeof p.panelName === 'string' &&
-      typeof p.damageType === 'string' &&
-      typeof p.severity === 'string' &&
-      typeof p.repairMethod === 'string' &&
-      typeof p.confidenceScore === 'number' &&
-      typeof p.description === 'string',
-    )
+  // Kept as one array so `panels[i]` and `usable[i]` stay the same panel —
+  // dropUnsupportedEnds reads `fromImageNumber` off the raw entry by index.
+  const usable = raw.panels.filter((p): p is Required<RawPanel> =>
+    typeof p.panelName === 'string' &&
+    typeof p.damageType === 'string' &&
+    typeof p.severity === 'string' &&
+    typeof p.repairMethod === 'string' &&
+    typeof p.confidenceScore === 'number' &&
+    typeof p.description === 'string',
+  );
+
+  const panels: DetectedPanel[] = usable
     .map((p) => {
       const panel: DetectedPanel = {
         panelName: p.panelName,
@@ -84,12 +162,15 @@ export function parseTriageResponse(
       : 'LOW'
   ) as TriageConfidence;
 
-  const hasLowConfidence = panels.some((p) => p.confidenceScore < confidenceThreshold);
-  const hasStructural = panels.some((p) => p.damageType === 'STRUCTURAL');
-  const requiresHumanReview = raw.requiresHumanReview ?? (hasLowConfidence || hasStructural);
+  const reconciled = dropUnsupportedEnds(panels, usable, raw.imageFindings ?? []);
+
+  const hasLowConfidence = reconciled.panels.some((p) => p.confidenceScore < confidenceThreshold);
+  const hasStructural = reconciled.panels.some((p) => p.damageType === 'STRUCTURAL');
+  const requiresHumanReview =
+    reconciled.dropped > 0 || (raw.requiresHumanReview ?? (hasLowConfidence || hasStructural));
 
   return {
-    panels,
+    panels: reconciled.panels,
     overallConfidence,
     summary: raw.summary ?? 'Damage assessment completed.',
     requiresHumanReview,
