@@ -110,3 +110,70 @@ describe('evaluateEligibility — repeated panels', () => {
     expect(r.verdict).toBe('INELIGIBLE');
   });
 });
+
+describe('damage size is judged per distinct panel', () => {
+  const rules: EligibilityRules = { ...RULES, maxDamageCm: 40, referOnReplace: false, referOnSevere: false };
+
+  // CX-20260816-MJ55: one rear bumper, read twice off two photos. The hazier
+  // read must not refer a case the confident read clears.
+  it('sizes a panel by its most confident reading, not its haziest', () => {
+    const result = evaluateEligibility(
+      {
+        panels: [
+          { panelName: 'rear_bumper', sizeEstimateCm: 10, sizeConfidence: 0.45 },
+          { panelName: 'rear_bumper', sizeEstimateCm: 13, sizeConfidence: 0.5 },
+        ],
+      },
+      rules,
+    );
+    expect(result.verdict).toBe('ELIGIBLE');
+    expect(result.reasons).toHaveLength(0);
+  });
+
+  it('still refers when every reading of a panel is hazy', () => {
+    const result = evaluateEligibility(
+      {
+        panels: [
+          { panelName: 'rear_bumper', sizeEstimateCm: 10, sizeConfidence: 0.45 },
+          { panelName: 'rear_bumper', sizeEstimateCm: 13, sizeConfidence: 0.3 },
+        ],
+      },
+      rules,
+    );
+    expect(result.verdict).toBe('REFER');
+    expect(result.reasons[0]?.rule).toBe('SIZE_UNKNOWN');
+  });
+
+  it('takes the larger estimate when confidence ties', () => {
+    const result = evaluateEligibility(
+      {
+        panels: [
+          { panelName: 'rear_bumper', sizeEstimateCm: 20, sizeConfidence: 0.9 },
+          { panelName: 'rear_bumper', sizeEstimateCm: 45, sizeConfidence: 0.9 },
+        ],
+      },
+      rules,
+    );
+    expect(result.verdict).toBe('INELIGIBLE');
+  });
+
+  it('judges different panels independently', () => {
+    const result = evaluateEligibility(
+      {
+        panels: [
+          { panelName: 'rear_bumper', sizeEstimateCm: 13, sizeConfidence: 0.8 },
+          { panelName: 'nearside_tail_light', sizeEstimateCm: 5, sizeConfidence: 0.4 },
+        ],
+      },
+      rules,
+    );
+    expect(result.verdict).toBe('REFER');
+    expect(result.reasons[0]?.detail).toContain('Tail Light');
+  });
+
+  it('still refers a panel with no size at all', () => {
+    const result = evaluateEligibility({ panels: [{ panelName: 'rear_bumper' }] }, rules);
+    expect(result.verdict).toBe('REFER');
+    expect(result.reasons[0]?.rule).toBe('SIZE_UNKNOWN');
+  });
+});
