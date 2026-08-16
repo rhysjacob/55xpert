@@ -116,7 +116,7 @@ describe('damage size is judged per distinct panel', () => {
 
   // CX-20260816-MJ55: one rear bumper, read twice off two photos. The hazier
   // read must not refer a case the confident read clears.
-  it('sizes a panel by its most confident reading, not its haziest', () => {
+  it('sizes a panel by its largest trusted reading, not the most confident one', () => {
     const result = evaluateEligibility(
       {
         panels: [
@@ -175,5 +175,35 @@ describe('damage size is judged per distinct panel', () => {
     const result = evaluateEligibility({ panels: [{ panelName: 'rear_bumper' }] }, rules);
     expect(result.verdict).toBe('REFER');
     expect(result.reasons[0]?.rule).toBe('SIZE_UNKNOWN');
+  });
+
+  // CX-20260816-IYSR: a caved-in rear quarter read at 40cm/0.70 and 35cm/0.72.
+  // Taking the most confident reading let 0.02 of confidence discard the 40cm
+  // and publish the case; the limit must see the largest reading it trusts.
+  it('does not let a hair of extra confidence discard a larger trusted reading', () => {
+    const result = evaluateEligibility(
+      {
+        panels: [
+          { panelName: 'nearside_rear_quarter', sizeEstimateCm: 40, sizeConfidence: 0.7 },
+          { panelName: 'nearside_rear_quarter', sizeEstimateCm: 35, sizeConfidence: 0.72 },
+        ],
+      },
+      rules,
+    );
+    expect(result.verdict).toBe('REFER');
+    expect(result.reasons[0]?.detail).toContain('40cm');
+  });
+
+  it('ignores a larger reading that is not trusted', () => {
+    const result = evaluateEligibility(
+      {
+        panels: [
+          { panelName: 'rear_bumper', sizeEstimateCm: 12, sizeConfidence: 0.8 },
+          { panelName: 'rear_bumper', sizeEstimateCm: 45, sizeConfidence: 0.2 },
+        ],
+      },
+      rules,
+    );
+    expect(result.verdict).toBe('ELIGIBLE');
   });
 });
