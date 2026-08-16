@@ -4,7 +4,7 @@ import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
-import { compareImageSlot, imageTypeLabel } from '@corexpert/core';
+import { compareImageSlot, imageTypeLabel, mergePanelsForDisplay } from '@corexpert/core';
 import type { TriageResult, DamagePanel } from '@corexpert/core';
 
 interface CaseData {
@@ -196,7 +196,7 @@ export function CaseDetailPage() {
             <Card className="mb-6">
               <CardHeader><h2 className="font-semibold">Panel Breakdown</h2></CardHeader>
               <CardBody className="space-y-3">
-                {data.triageResult.panels.map((panel, i) => (
+                {mergePanelsForDisplay(data.triageResult.panels).map((panel, i) => (
                   <PanelRow key={i} panel={panel} />
                 ))}
               </CardBody>

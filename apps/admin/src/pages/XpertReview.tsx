@@ -5,7 +5,7 @@ import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { quoteFromPanels, getActiveScheme, compareImageSlot, imageTypeLabel } from '@corexpert/core';
+import { quoteFromPanels, getActiveScheme, compareImageSlot, imageTypeLabel, mergePanelsForDisplay } from '@corexpert/core';
 
 // Active warranty scheme, selected at build time (must match the API's WARRANTY_SCHEME).
 const scheme = getActiveScheme(import.meta.env['VITE_WARRANTY_SCHEME']);
@@ -198,7 +198,7 @@ export function XpertReviewPage() {
                       <p className="text-xs text-gray-500">Confidence</p>
                     </div>
                     <div>
-                      <p className="font-bold">{triage.panels.length}</p>
+                      <p className="font-bold">{mergePanelsForDisplay(triage.panels).length}</p>
                       <p className="text-xs text-gray-500">Panels</p>
                     </div>
                     <div>
@@ -210,7 +210,7 @@ export function XpertReviewPage() {
                   <p className="text-sm text-gray-700 mb-4">{triage.summary}</p>
 
                   <div className="space-y-2">
-                    {triage.panels.map((panel: DamagePanel, i: number) => (
+                    {mergePanelsForDisplay(triage.panels).map((panel: DamagePanel, i: number) => (
                       <div key={i} className="border border-gray-100 rounded p-2 text-xs">
                         <div className="flex justify-between">
                           <span className="font-medium">

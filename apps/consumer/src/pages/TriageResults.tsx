@@ -5,7 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
-import { humanize, compareImageSlot, imageTypeLabel } from '@corexpert/core';
+import { humanize, compareImageSlot, imageTypeLabel, mergePanelsForDisplay } from '@corexpert/core';
 import { HeadingMotif } from '../branding/BrandMotif';
 import { useBrand } from '../branding/useBrand';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
@@ -355,7 +355,7 @@ export function TriageResultsPage() {
         <Card className="mb-6">
           <CardHeader><h2 className="font-semibold">Damage Breakdown</h2></CardHeader>
           <CardBody className="space-y-3">
-            {triageResult.panels.map((panel, i) => (
+            {mergePanelsForDisplay(triageResult.panels).map((panel, i) => (
               <PanelRow key={i} panel={panel} />
             ))}
           </CardBody>
