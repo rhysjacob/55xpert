@@ -70,6 +70,12 @@ export interface Brand {
    * "an Xpert is reviewing this".
    */
   referral?: BrandReferralCopy;
+  /**
+   * What this company says once a case is published to repairers. The default
+   * names The Repair Xchange, which is the truth for a consumer-submitted case
+   * but means nothing to a warranty company's own customer.
+   */
+  publishedNotice?: string;
 }
 
 /**
@@ -150,6 +156,9 @@ const PRECISION_BRAND: Brand = {
     requestedDetail:
       "They'll allocate the most suitable site for this repair and contact you directly.",
   },
+  // Their customer is buying a Precision repair, not a listing on a marketplace
+  // they have never heard of.
+  publishedNotice: 'We have allocated this repair to a Precision Mobile Solution',
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];

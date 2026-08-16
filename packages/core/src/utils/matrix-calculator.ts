@@ -143,11 +143,16 @@ const MIRROR_PANELS = new Set(['nearside_mirror', 'offside_mirror']);
 
 /** Build the (literal) matrix selection for an already-eligible job. */
 export function deriveMatrixInput(panels: MatrixPanelInput[]): MatrixQuoteInput {
-  const standard = panels.filter(
-    (p) => !BUMPER_PANELS.has(p.panelName) && !MIRROR_PANELS.has(p.panelName),
+  // Count DISTINCT panels. The assessment can list one panel more than once —
+  // a scuff and a crack on the same bumper come back as two entries — but the
+  // matrix prices a panel, not a damage area. Counting entries billed a single
+  // damaged bumper as "2× Bumper — Repair & Paint".
+  const names = new Set(panels.map((p) => p.panelName));
+  const standard = [...names].filter(
+    (name) => !BUMPER_PANELS.has(name) && !MIRROR_PANELS.has(name),
   );
-  const bumperCount = panels.filter((p) => BUMPER_PANELS.has(p.panelName)).length;
-  const mirrorCount = panels.filter((p) => MIRROR_PANELS.has(p.panelName)).length;
+  const bumperCount = [...names].filter((name) => BUMPER_PANELS.has(name)).length;
+  const mirrorCount = [...names].filter((name) => MIRROR_PANELS.has(name)).length;
 
   const input: MatrixQuoteInput = { panelCount: standard.length as 0 | 1 | 2 | 3 | 4 };
   if (standard.length > 0) input.panelCategory = MatrixPaintCategory.REPAIR_PAINT;

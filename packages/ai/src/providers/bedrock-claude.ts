@@ -8,7 +8,7 @@ import type {
   DamageAssessmentOutput,
   AssessorConfig,
 } from '../interfaces/damage-assessor';
-import { buildSystemPrompt, buildUserPrompt } from '../prompts/damage-analysis';
+import { buildSystemPrompt, buildUserPrompt, buildImageLabel } from '../prompts/damage-analysis';
 import { parseTriageResponse } from '../parsers/triage-response';
 import { PANEL_NAMES } from '@corexpert/core';
 
@@ -28,12 +28,39 @@ const RESPONSE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    // Generated BEFORE `panels`, and deliberately so — the model emits fields in
+    // schema order, and a schema that opens on `panelName` makes it commit to
+    // "front_" or "rear_" as its very first token, with nowhere to have worked
+    // out which end it is looking at. On CX-20260816-B9QZ that produced
+    // `rear_bumper` for a front-bumper close-up, and a summary that explained
+    // away the two front-facing photos as "a different vehicle in the
+    // background" to keep the story straight. Making it list the cues it can
+    // actually see, per image, before it may name anything is what fixed it.
+    // It also persists into `aiRawResponse`, so a wrong call is now auditable
+    // rather than a bare panel name.
+    imageFindings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          imageNumber: { type: 'number' },
+          visibleCues: { type: 'string' },
+          end: { type: 'string', enum: ['FRONT', 'REAR', 'SIDE_ONLY', 'UNCLEAR'] },
+          showsDamage: { type: 'boolean' },
+        },
+        required: ['imageNumber', 'visibleCues', 'end', 'showsDamage'],
+      },
+    },
     panels: {
       type: 'array',
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
+          // Cited before the name, so the panel is tied to the image whose `end`
+          // it must agree with.
+          fromImageNumber: { type: 'number' },
           panelName: { type: 'string', enum: [...PANEL_NAMES] },
           damageType: {
             type: 'string',
@@ -50,7 +77,7 @@ const RESPONSE_SCHEMA = {
           sizeConfidence: { type: 'number' },
         },
         required: [
-          'panelName', 'damageType', 'severity', 'repairMethod',
+          'fromImageNumber', 'panelName', 'damageType', 'severity', 'repairMethod',
           'confidenceScore', 'description', 'sizeEstimateCm', 'sizeConfidence',
         ],
       },
@@ -59,7 +86,7 @@ const RESPONSE_SCHEMA = {
     summary: { type: 'string' },
     requiresHumanReview: { type: 'boolean' },
   },
-  required: ['panels', 'overallConfidence', 'summary', 'requiresHumanReview'],
+  required: ['imageFindings', 'panels', 'overallConfidence', 'summary', 'requiresHumanReview'],
 } as const;
 
 interface BedrockMessage {
@@ -99,8 +126,13 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
 
     const userContent: BedrockContent[] = [];
 
-    // Add images
-    for (const image of input.images) {
+    // Caption each image before its bytes. The orientation rules in the system
+    // prompt are per-photo, so the model needs a handle on which photo is which.
+    input.images.forEach((image, i) => {
+      userContent.push({
+        type: 'text',
+        text: buildImageLabel(image.imageType, i, input.images.length),
+      });
       userContent.push({
         type: 'image',
         source: {
@@ -109,7 +141,7 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
           data: image.base64,
         },
       });
-    }
+    });
 
     // Add text prompt
     userContent.push({ type: 'text', text: userPrompt });
@@ -121,6 +153,17 @@ export class BedrockClaudeAssessor implements IDamageAssessor {
     const body = JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
       max_tokens: MAX_TOKENS,
+      // Greedy decoding. This assessment decides accept-or-reject against fixed
+      // numeric thresholds, so sampling from the default temperature meant the
+      // same photos could land either side of a limit: two submissions of one
+      // identical image set returned a 40cm and a 45cm rear quarter against a
+      // 40cm limit (±4cm band), and so one REFER and one INELIGIBLE.
+      //
+      // This does not make the model *right* about a size it is reading off a
+      // photograph, and 0 is not a determinism guarantee. It removes the
+      // deliberate randomness, so a customer resubmitting the same photos gets
+      // the same answer.
+      temperature: 0,
       system: systemPrompt,
       messages,
       output_config: { format: { type: 'json_schema', schema: RESPONSE_SCHEMA } },

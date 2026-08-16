@@ -10,7 +10,7 @@ import type {
   DamageAssessmentOutput,
   AssessorConfig,
 } from '../interfaces/damage-assessor';
-import { buildSystemPrompt, buildUserPrompt } from '../prompts/damage-analysis';
+import { buildSystemPrompt, buildUserPrompt, buildImageLabel } from '../prompts/damage-analysis';
 import { parseTriageResponse } from '../parsers/triage-response';
 
 const DEFAULT_REGION = 'eu-west-2';
@@ -49,14 +49,16 @@ export class BedrockConverseAssessor implements IDamageAssessor {
 
   async assessDamage(input: DamageAssessmentInput): Promise<DamageAssessmentOutput> {
     const content: ContentBlock[] = [];
-    for (const image of input.images) {
+    // Caption each image before its bytes — see buildImageLabel.
+    input.images.forEach((image, i) => {
+      content.push({ text: buildImageLabel(image.imageType, i, input.images.length) });
       content.push({
         image: {
           format: imageFormat(image.mimeType),
           source: { bytes: Uint8Array.from(Buffer.from(image.base64, 'base64')) },
         },
       });
-    }
+    });
     content.push({ text: buildUserPrompt(input.vehicle) });
 
     const response = await this.client.send(

@@ -4,6 +4,7 @@ import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
+import { compareImageSlot, imageTypeLabel } from '@corexpert/core';
 import type { TriageResult, DamagePanel } from '@corexpert/core';
 
 interface CaseData {
@@ -126,22 +127,24 @@ export function CaseDetailPage() {
             <CardHeader><h2 className="font-semibold">Damage Photos</h2></CardHeader>
             <CardBody>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {data.images.map((img, i) => (
-                  <div key={i}>
-                    {img.url ? (
-                      <img
-                        src={img.url}
-                        alt={img.imageType.replace(/_/g, ' ')}
-                        className="rounded-lg w-full h-40 object-cover bg-gray-100"
-                      />
-                    ) : (
-                      <div className="rounded-lg w-full h-40 flex items-center justify-center bg-gray-100 text-xs text-gray-400">
-                        unavailable
-                      </div>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">{img.imageType.replace(/_/g, ' ')}</p>
-                  </div>
-                ))}
+                {[...data.images]
+                  .sort((a, b) => compareImageSlot(a.imageType, b.imageType))
+                  .map((img, i) => (
+                    <div key={i}>
+                      {img.url ? (
+                        <img
+                          src={img.url}
+                          alt={imageTypeLabel(img.imageType)}
+                          className="rounded-lg w-full h-40 object-cover bg-gray-100"
+                        />
+                      ) : (
+                        <div className="rounded-lg w-full h-40 flex items-center justify-center bg-gray-100 text-xs text-gray-400">
+                          unavailable
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">{imageTypeLabel(img.imageType)}</p>
+                    </div>
+                  ))}
               </div>
             </CardBody>
           </Card>

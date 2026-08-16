@@ -5,7 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
-import { humanize } from '@corexpert/core';
+import { humanize, compareImageSlot, imageTypeLabel } from '@corexpert/core';
 import { HeadingMotif } from '../branding/BrandMotif';
 import { useBrand } from '../branding/useBrand';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
@@ -102,6 +102,29 @@ function ReferralNotice({
       )}
       <p className="text-sm text-yellow-700 mt-2">Why this was referred:</p>
     </>
+  );
+}
+
+/**
+ * What a published case says to the consumer.
+ *
+ * The default names the marketplace, because for a consumer-submitted case that
+ * is genuinely what happened — the job went out to the network. A warranty
+ * company whose own repairers take the work describes it in its own terms, and
+ * "The Repair Xchange" is a name their customer has no reason to have heard of.
+ * Tenant-gated like the referral copy, for the same reason.
+ */
+function PublishedNotice({ warrantyCompanyId }: { warrantyCompanyId?: string }) {
+  const brand = useBrand();
+  const tenantMatches =
+    brand.warrantyCompanyId !== undefined && brand.warrantyCompanyId === warrantyCompanyId;
+
+  return (
+    <p className="text-center text-on-app-success font-medium">
+      {brand.publishedNotice && tenantMatches
+        ? brand.publishedNotice
+        : 'Automatically published to The Repair Xchange — repairers can now see this job.'}
+    </p>
   );
 }
 
@@ -263,7 +286,7 @@ export function TriageResultsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {triageResult.panels.length}
+                  {new Set(triageResult.panels.map((p) => p.panelName)).size}
                 </p>
                 <p className="text-xs text-gray-500">Panels affected</p>
               </div>
@@ -298,16 +321,18 @@ export function TriageResultsPage() {
             <CardHeader><h2 className="font-semibold">Your Photos</h2></CardHeader>
             <CardBody>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {data.images.map((img, i) => (
-                  <div key={i}>
-                    <img
-                      src={img.url}
-                      alt={img.imageType.replace(/_/g, ' ')}
-                      className="rounded-lg w-full h-40 object-cover bg-gray-100"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">{img.imageType.replace(/_/g, ' ')}</p>
-                  </div>
-                ))}
+                {[...data.images]
+                  .sort((a, b) => compareImageSlot(a.imageType, b.imageType))
+                  .map((img, i) => (
+                    <div key={i}>
+                      <img
+                        src={img.url}
+                        alt={imageTypeLabel(img.imageType)}
+                        className="rounded-lg w-full h-40 object-cover bg-gray-100"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">{imageTypeLabel(img.imageType)}</p>
+                    </div>
+                  ))}
               </div>
             </CardBody>
           </Card>
@@ -334,9 +359,7 @@ export function TriageResultsPage() {
         {/* Outcome is automatic — no publish action for the consumer. */}
         <div className="flex flex-col items-center gap-3">
           {data.status === 'PUBLISHED' && (
-            <p className="text-center text-on-app-success font-medium">
-              Automatically published to The Repair Xchange — repairers can now see this job.
-            </p>
+            <PublishedNotice warrantyCompanyId={data.warrantyCompanyId} />
           )}
           <Link to="/">
             <Button variant="secondary">Back to Dashboard</Button>

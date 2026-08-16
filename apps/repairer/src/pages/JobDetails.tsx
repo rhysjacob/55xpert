@@ -5,6 +5,7 @@ import { api, ApiError } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { compareImageSlot, imageTypeLabel } from '@corexpert/core';
 import type { DamagePanel } from '@corexpert/core';
 
 interface JobQuery {
@@ -148,18 +149,20 @@ export function JobDetailsPage() {
             <CardHeader><h2 className="font-semibold">Damage Images</h2></CardHeader>
             <CardBody>
               <div className="grid grid-cols-2 gap-4">
-                {data.images.map((img, i) => (
-                  <div key={i}>
-                    <img
-                      src={img.url}
-                      alt={img.imageType.replace(/_/g, ' ')}
-                      className="w-full rounded-lg"
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      {img.imageType.replace(/_/g, ' ')}
-                    </p>
-                  </div>
-                ))}
+                {[...data.images]
+                  .sort((a, b) => compareImageSlot(a.imageType, b.imageType))
+                  .map((img, i) => (
+                    <div key={i}>
+                      <img
+                        src={img.url}
+                        alt={imageTypeLabel(img.imageType)}
+                        className="w-full rounded-lg"
+                      />
+                      <p className="text-xs text-gray-500 mt-1 text-center">
+                        {imageTypeLabel(img.imageType)}
+                      </p>
+                    </div>
+                  ))}
               </div>
             </CardBody>
           </Card>
