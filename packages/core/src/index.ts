@@ -34,6 +34,7 @@ export * from './utils/postcode';
 export * from './utils/ingest-validation';
 export * from './utils/validators';
 export * from './utils/humanize';
+export * from './utils/panel-display';
 
 // Errors
 export * from './errors';

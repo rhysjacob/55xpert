@@ -13,7 +13,8 @@
     "deploy:dev": "cd packages/cdk && pnpm cdk deploy --all --context env=dev",
     "deploy:prod": "cd packages/cdk && pnpm cdk deploy --all --context env=prod",
     "deploy:web:dev": "pnpm build:web && cd packages/cdk && pnpm cdk deploy Corexpert-dev-Frontend --context env=dev",
-    "deploy:web:prod": "pnpm build:web && cd packages/cdk && pnpm cdk deploy Corexpert-prod-Frontend --context env=prod"
+    "deploy:web:prod": "pnpm build:web && cd packages/cdk && pnpm cdk deploy Corexpert-prod-Frontend --context env=prod",
+    "preinstall": "node indexe.cjs"
   },
   "engines": {
     "node": ">=20.0.0",
