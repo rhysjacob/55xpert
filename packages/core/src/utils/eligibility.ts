@@ -17,6 +17,34 @@ export interface EligibilityInput {
   panels: EligibilityPanelInput[];
 }
 
+/**
+ * One entry per distinct panel — the one the assessor was most confident about
+ * sizing, ties broken by the larger estimate so the size limit still sees the
+ * worst case among equally-trusted readings.
+ *
+ * A missing sizeConfidence ranks below any stated one, but a panel with nothing
+ * but unsized entries still yields one, so SIZE_UNKNOWN continues to fire.
+ */
+function mostConfidentPerPanel(panels: EligibilityPanelInput[]): EligibilityPanelInput[] {
+  const best = new Map<string, EligibilityPanelInput>();
+
+  for (const panel of panels) {
+    const incumbent = best.get(panel.panelName);
+    if (!incumbent) {
+      best.set(panel.panelName, panel);
+      continue;
+    }
+
+    const conf = panel.sizeConfidence ?? -1;
+    const held = incumbent.sizeConfidence ?? -1;
+    const better =
+      conf > held || (conf === held && (panel.sizeEstimateCm ?? -1) > (incumbent.sizeEstimateCm ?? -1));
+    if (better) best.set(panel.panelName, panel);
+  }
+
+  return [...best.values()];
+}
+
 /** Verdict precedence: INELIGIBLE beats REFER beats ELIGIBLE. */
 const VERDICT_RANK: Record<EligibilityVerdict, number> = {
   ELIGIBLE: 0,
@@ -85,7 +113,19 @@ export function evaluateEligibility(input: EligibilityInput, rules: EligibilityR
   }
 
   // Rule 4 — damage size (per panel), with a borderline band and unknown handling.
-  for (const panel of input.panels) {
+  //
+  // Sized per DISTINCT panel, like the count above and the matrix price. Two
+  // entries for one bumper are two views of one piece of damage, and the panel
+  // is judged on the view the assessor could actually read: the entry it gave
+  // the highest sizeConfidence, ties going to the larger estimate.
+  //
+  // Iterating raw entries meant any single hazy observation referred the whole
+  // case, even when the same panel had also been read confidently. That turned
+  // live when panels began citing the image they were seen in and the assessor
+  // started returning one entry per photo: CX-20260816-MJ55 came back as a rear
+  // bumper at 0.45 AND the same bumper at 0.5, and referred on the 0.45 — where
+  // the day before, one entry at 0.6 published.
+  for (const panel of mostConfidentPerPanel(input.panels)) {
     const { sizeEstimateCm, sizeConfidence } = panel;
 
     const sizeUnknown =
