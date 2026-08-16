@@ -158,7 +158,7 @@ const PRECISION_BRAND: Brand = {
   },
   // Their customer is buying a Precision repair, not a listing on a marketplace
   // they have never heard of.
-  publishedNotice: 'This has been sent to a Precision Mobile Repairer',
+  publishedNotice: 'We have allocated this repair to a Precision Mobile Solution',
 };
 
 export const BRANDS: Brand[] = [DEFAULT_BRAND, PRECISION_BRAND];
