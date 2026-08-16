@@ -82,6 +82,11 @@ Valid repair methods:
 
 For each damaged panel, also estimate the size of the damage. Estimate the longest dimension of the damaged area in centimetres. Use visible reference objects for scale where possible (e.g. door handles ~12cm, badges ~8cm, wheel/tyre, number plate is 52cm wide). For context, a size-5 football is ~22cm across. Provide a sizeConfidence between 0.0 and 1.0 reflecting how reliably you can judge scale — if there is no usable reference object or the angle makes scale ambiguous, set a LOW sizeConfidence (< 0.5) rather than guessing.
 
+sizeConfidence IS A JUDGEMENT ABOUT SCALE ALONE — how well you can measure the damage, not how sure you are which panel it sits on. The two are independent and must not be conflated:
+- A close-up you could not orient can still be measured well. If a number plate, door handle, badge, wheel or panel gap is in frame, you have your scale, and sizeConfidence should be 0.7 or above whatever you concluded about front or rear.
+- A panel you identified with total certainty can still be hard to measure, if the shot is square-on with nothing of known size in it.
+Do not let doubt about WHICH panel drag the sizeConfidence down, and do not lower it out of general caution. Below 0.5 means "I cannot find anything in this photograph to measure against" — it is a statement about the photograph, not a hedge.
+
 WORK IN TWO STEPS — cues first, then panels. Do not name a panel until you have done step 1 for every image.
 
 STEP 1 — fill in "imageFindings", one entry per image, in the order the images were given:
