@@ -18,31 +18,47 @@ export interface EligibilityInput {
 }
 
 /**
- * One entry per distinct panel — the one the assessor was most confident about
- * sizing, ties broken by the larger estimate so the size limit still sees the
- * worst case among equally-trusted readings.
+ * One size reading per distinct panel, for the limit checks below.
  *
- * A missing sizeConfidence ranks below any stated one, but a panel with nothing
- * but unsized entries still yields one, so SIZE_UNKNOWN continues to fire.
+ * Several entries for one panel are several readings of one piece of damage.
+ * The question the limit asks is "is this damage inside what we take on", so
+ * among the readings we TRUST — those at or above minSizeConfidence — the
+ * answer has to come from the LARGEST, the worst case. A reading is either
+ * credible enough to act on or it is not; once it is credible, the fact that
+ * another reading happened to be a shade more confident does not make the
+ * bigger measurement go away.
+ *
+ * Picking the single most confident reading instead let a rounding-level
+ * difference in confidence decide the verdict. CX-20260816-IYSR came back with
+ * a rear quarter at 40cm/0.70 and the same quarter at 35cm/0.72; the 0.02
+ * carried it, 35cm fell below the 36cm borderline, and a caved-in quarter
+ * panel published instead of going to an Xpert.
+ *
+ * When nothing about a panel is trusted, its most confident reading is returned
+ * so SIZE_UNKNOWN still fires and still has sensible numbers to quote.
  */
-function mostConfidentPerPanel(panels: EligibilityPanelInput[]): EligibilityPanelInput[] {
-  const best = new Map<string, EligibilityPanelInput>();
-
+function sizeReadingPerPanel(
+  panels: EligibilityPanelInput[],
+  minSizeConfidence: number,
+): EligibilityPanelInput[] {
+  const byPanel = new Map<string, EligibilityPanelInput[]>();
   for (const panel of panels) {
-    const incumbent = best.get(panel.panelName);
-    if (!incumbent) {
-      best.set(panel.panelName, panel);
-      continue;
-    }
-
-    const conf = panel.sizeConfidence ?? -1;
-    const held = incumbent.sizeConfidence ?? -1;
-    const better =
-      conf > held || (conf === held && (panel.sizeEstimateCm ?? -1) > (incumbent.sizeEstimateCm ?? -1));
-    if (better) best.set(panel.panelName, panel);
+    const group = byPanel.get(panel.panelName);
+    if (group) group.push(panel);
+    else byPanel.set(panel.panelName, [panel]);
   }
 
-  return [...best.values()];
+  const size = (p: EligibilityPanelInput) => p.sizeEstimateCm ?? -1;
+  const conf = (p: EligibilityPanelInput) => p.sizeConfidence ?? -1;
+  const pick = (group: EligibilityPanelInput[], by: (p: EligibilityPanelInput) => number) =>
+    group.reduce((best, p) => (by(p) > by(best) ? p : best));
+
+  return [...byPanel.values()].map((group) => {
+    const trusted = group.filter(
+      (p) => p.sizeEstimateCm !== undefined && conf(p) >= minSizeConfidence,
+    );
+    return trusted.length > 0 ? pick(trusted, size) : pick(group, conf);
+  });
 }
 
 /** Verdict precedence: INELIGIBLE beats REFER beats ELIGIBLE. */
@@ -125,7 +141,7 @@ export function evaluateEligibility(input: EligibilityInput, rules: EligibilityR
   // started returning one entry per photo: CX-20260816-MJ55 came back as a rear
   // bumper at 0.45 AND the same bumper at 0.5, and referred on the 0.45 — where
   // the day before, one entry at 0.6 published.
-  for (const panel of mostConfidentPerPanel(input.panels)) {
+  for (const panel of sizeReadingPerPanel(input.panels, rules.minSizeConfidence)) {
     const { sizeEstimateCm, sizeConfidence } = panel;
 
     const sizeUnknown =
