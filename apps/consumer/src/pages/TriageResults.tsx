@@ -5,7 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/Badge';
-import { humanize } from '@corexpert/core';
+import { humanize, compareImageSlot, imageTypeLabel } from '@corexpert/core';
 import { HeadingMotif } from '../branding/BrandMotif';
 import { useBrand } from '../branding/useBrand';
 import type { TriageResult, DamagePanel, TriageConfidence } from '@corexpert/core';
@@ -321,16 +321,18 @@ export function TriageResultsPage() {
             <CardHeader><h2 className="font-semibold">Your Photos</h2></CardHeader>
             <CardBody>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {data.images.map((img, i) => (
-                  <div key={i}>
-                    <img
-                      src={img.url}
-                      alt={img.imageType.replace(/_/g, ' ')}
-                      className="rounded-lg w-full h-40 object-cover bg-gray-100"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">{img.imageType.replace(/_/g, ' ')}</p>
-                  </div>
-                ))}
+                {[...data.images]
+                  .sort((a, b) => compareImageSlot(a.imageType, b.imageType))
+                  .map((img, i) => (
+                    <div key={i}>
+                      <img
+                        src={img.url}
+                        alt={imageTypeLabel(img.imageType)}
+                        className="rounded-lg w-full h-40 object-cover bg-gray-100"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">{imageTypeLabel(img.imageType)}</p>
+                    </div>
+                  ))}
               </div>
             </CardBody>
           </Card>

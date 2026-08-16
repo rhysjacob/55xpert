@@ -5,7 +5,7 @@ import { api } from '../lib/api-client';
 import { Layout } from '../components/ui/Layout';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { quoteFromPanels, getActiveScheme } from '@corexpert/core';
+import { quoteFromPanels, getActiveScheme, compareImageSlot, imageTypeLabel } from '@corexpert/core';
 
 // Active warranty scheme, selected at build time (must match the API's WARRANTY_SCHEME).
 const scheme = getActiveScheme(import.meta.env['VITE_WARRANTY_SCHEME']);
@@ -30,7 +30,7 @@ function FraudPanel({ assessment }: { assessment: FraudAssessment }) {
   const grouped = Object.values(
     assessment.reasons.reduce<Record<string, { detail: string; images: string[] }>>((acc, r) => {
       const g = (acc[r.code] ??= { detail: r.detail, images: [] });
-      if (r.imageType) g.images.push(r.imageType.replace(/_/g, ' ').toLowerCase());
+      if (r.imageType) g.images.push(imageTypeLabel(r.imageType));
       return acc;
     }, {}),
   );
@@ -152,24 +152,26 @@ export function XpertReviewPage() {
                 <p className="text-sm text-gray-500">No images available</p>
               ) : (
                 <div className="space-y-3">
-                  {data.images.map((img, i) => (
-                    <div key={i} className="border border-gray-200 rounded-lg p-2">
-                      <p className="text-xs text-gray-500 mb-1">
-                        {img.imageType.replace(/_/g, ' ')}
-                      </p>
-                      {img.url ? (
-                        <img
-                          src={img.url}
-                          alt={img.imageType.replace(/_/g, ' ')}
-                          className="rounded w-full max-h-80 object-contain bg-gray-100"
-                        />
-                      ) : (
-                        <div className="bg-gray-100 rounded h-40 flex items-center justify-center text-sm text-gray-400">
-                          Image unavailable: {img.s3Key.split('/').pop()}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {[...data.images]
+                    .sort((a, b) => compareImageSlot(a.imageType, b.imageType))
+                    .map((img, i) => (
+                      <div key={i} className="border border-gray-200 rounded-lg p-2">
+                        <p className="text-xs text-gray-500 mb-1">
+                          {imageTypeLabel(img.imageType)}
+                        </p>
+                        {img.url ? (
+                          <img
+                            src={img.url}
+                            alt={imageTypeLabel(img.imageType)}
+                            className="rounded w-full max-h-80 object-contain bg-gray-100"
+                          />
+                        ) : (
+                          <div className="bg-gray-100 rounded h-40 flex items-center justify-center text-sm text-gray-400">
+                            {imageTypeLabel(img.imageType)} unavailable
+                          </div>
+                        )}
+                      </div>
+                    ))}
                 </div>
               )}
             </CardBody>

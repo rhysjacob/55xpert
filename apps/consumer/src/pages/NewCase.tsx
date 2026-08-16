@@ -6,7 +6,14 @@ import { Layout } from '../components/ui/Layout';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
-import type { Case, Vehicle, VehicleLookupResponse } from '@corexpert/core';
+import {
+  IMAGE_SLOT_ORDER,
+  IMAGE_TYPE_LABELS,
+  IMAGE_TYPE_UPLOAD_HINTS,
+  type Case,
+  type Vehicle,
+  type VehicleLookupResponse,
+} from '@corexpert/core';
 
 const STEPS = ['Vehicle', 'Details', 'Images', 'Review'];
 
@@ -26,12 +33,10 @@ function FilePickerButton({
   label,
   onFiles,
   variant,
-  multiple = false,
 }: {
   label: string;
   onFiles: (files: File[]) => void;
   variant: 'primary' | 'secondary';
-  multiple?: boolean;
 }) {
   const styles =
     variant === 'primary'
@@ -44,7 +49,6 @@ function FilePickerButton({
     >
       <input
         type="file"
-        multiple={multiple}
         accept={ACCEPTED_IMAGE_TYPES}
         className="sr-only"
         onChange={(e) => {
@@ -146,17 +150,13 @@ export function NewCasePage() {
     }
   };
 
-  // Distribute a multi-file selection across the still-empty slots, in order.
-  const IMAGE_SLOTS = ['REGISTRATION_PLATE', 'DAMAGE_ANGLE_1', 'DAMAGE_ANGLE_2', 'DAMAGE_ANGLE_3'] as const;
-  const handleFiles = (files: File[] | FileList) => {
-    const openSlots = IMAGE_SLOTS.filter((t) => uploadStatus[t] === 'pending');
-    Array.from(files)
-      .slice(0, openSlots.length)
-      .forEach((file, i) => handleImageUpload(openSlots[i]!, file));
-  };
-
+  // Deliberately no bulk "pick 4 at once" path. It filled the slots in whichever
+  // order the file picker happened to return, so the slot a photo landed in was
+  // unrelated to what the photo showed. On CX-20260816-B9QZ that put a bumper
+  // wide shot in REGISTRATION_PLATE and the actual plate photo in DAMAGE_ANGLE_3.
+  // The slot is not just a caption for us: it is sent to the assessor as the
+  // label for that image, so a misfiled photo is assessed as the wrong thing.
   const allUploaded = Object.values(uploadStatus).every((s) => s === 'done');
-  const openSlotCount = Object.values(uploadStatus).filter((s) => s === 'pending').length;
 
   return (
     <Layout>
@@ -284,34 +284,13 @@ export function NewCasePage() {
             <CardHeader><h2 className="text-lg font-semibold">Upload Images</h2></CardHeader>
             <CardBody className="space-y-4">
               <p className="text-sm text-gray-500">
-                Upload 4 images of your vehicle damage for AI assessment. You can select
-                several at once and they'll fill the empty slots below in order.
+                Upload 4 images of your vehicle damage for AI assessment. Choose each
+                photo against the slot it belongs to — the assessment reads the slot to
+                work out what it is looking at, so a photo in the wrong slot is assessed
+                as the wrong thing. JPG, PNG, WEBP or HEIC.
               </p>
 
-              {openSlotCount > 0 && (
-                <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 text-center">
-                  <p className="text-sm font-medium text-gray-700 mb-3">
-                    {openSlotCount} slot{openSlotCount === 1 ? '' : 's'} remaining
-                  </p>
-                  <FilePickerButton
-                    multiple
-                    variant="primary"
-                    label="Choose photos"
-                    onFiles={(files) => handleFiles(files)}
-                  />
-                  <p className="text-xs text-gray-500 mt-3">
-                    JPG, PNG, WEBP or HEIC
-                  </p>
-                </div>
-              )}
-
-              {(['REGISTRATION_PLATE', 'DAMAGE_ANGLE_1', 'DAMAGE_ANGLE_2', 'DAMAGE_ANGLE_3'] as const).map((type) => {
-                const labels: Record<string, string> = {
-                  REGISTRATION_PLATE: 'Registration plate (clear photo)',
-                  DAMAGE_ANGLE_1: 'Damage photo - Angle 1 (wide shot)',
-                  DAMAGE_ANGLE_2: 'Damage photo - Angle 2 (close up)',
-                  DAMAGE_ANGLE_3: 'Damage photo - Angle 3 (context)',
-                };
+              {IMAGE_SLOT_ORDER.map((type) => {
                 const status = uploadStatus[type];
 
                 return (
@@ -323,7 +302,8 @@ export function NewCasePage() {
                       'border-gray-300 hover:border-blue-400'
                     }`}
                   >
-                    <p className="text-sm font-medium text-gray-700 mb-2">{labels[type]}</p>
+                    <p className="text-sm font-medium text-gray-700">{IMAGE_TYPE_LABELS[type]}</p>
+                    <p className="text-xs text-gray-500 mb-2">{IMAGE_TYPE_UPLOAD_HINTS[type]}</p>
                     {status === 'done' ? (
                       <p className="text-sm text-green-600">Uploaded</p>
                     ) : status === 'uploading' ? (

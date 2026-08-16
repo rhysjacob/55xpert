@@ -41,6 +41,60 @@ export const ImageType = {
 } as const;
 export type ImageType = (typeof ImageType)[keyof typeof ImageType];
 
+/**
+ * The canonical order of the upload slots — plate first, then the damage angles
+ * from wide to context.
+ *
+ * Stored order is NOT this order. `addImage` appends one row per completed
+ * upload, so `case.images` reflects whichever PUT finished first. Any screen
+ * showing the set should sort with {@link compareImageSlot} rather than render
+ * the array as stored, or the same case shows its photos in a different order
+ * to different people.
+ */
+export const IMAGE_SLOT_ORDER: readonly ImageType[] = [
+  ImageType.REGISTRATION_PLATE,
+  ImageType.DAMAGE_ANGLE_1,
+  ImageType.DAMAGE_ANGLE_2,
+  ImageType.DAMAGE_ANGLE_3,
+];
+
+/**
+ * What each slot is called, for humans.
+ *
+ * The single source of truth. Every screen previously re-derived its caption
+ * inline as `imageType.replace(/_/g, ' ')`, which rendered the raw enum
+ * ("DAMAGE ANGLE 1"), matched the upload screen's wording nowhere, and had
+ * drifted into three different casings across the apps.
+ */
+export const IMAGE_TYPE_LABELS: Record<ImageType, string> = {
+  REGISTRATION_PLATE: 'Registration plate',
+  DAMAGE_ANGLE_1: 'Damage — angle 1 (wide shot)',
+  DAMAGE_ANGLE_2: 'Damage — angle 2 (close-up)',
+  DAMAGE_ANGLE_3: 'Damage — angle 3 (context)',
+};
+
+/** Extra guidance shown only while choosing a photo for the slot. */
+export const IMAGE_TYPE_UPLOAD_HINTS: Record<ImageType, string> = {
+  REGISTRATION_PLATE: 'Straight on, with the number plate readable.',
+  DAMAGE_ANGLE_1: 'The whole damaged panel, from a few steps back.',
+  DAMAGE_ANGLE_2: 'Close in on the damage itself.',
+  DAMAGE_ANGLE_3: 'Wider still, showing where on the vehicle the damage sits.',
+};
+
+/** Human label for a slot, tolerating any unrecognised value from storage. */
+export function imageTypeLabel(imageType: string): string {
+  return IMAGE_TYPE_LABELS[imageType as ImageType] ?? imageType.replace(/_/g, ' ');
+}
+
+/** Sort comparator putting images into {@link IMAGE_SLOT_ORDER}; unknowns last. */
+export function compareImageSlot(a: string, b: string): number {
+  const rank = (t: string) => {
+    const i = (IMAGE_SLOT_ORDER as readonly string[]).indexOf(t);
+    return i === -1 ? IMAGE_SLOT_ORDER.length : i;
+  };
+  return rank(a) - rank(b);
+}
+
 export const XpertDecision = {
   APPROVED: 'APPROVED',
   ADJUSTED: 'ADJUSTED',
